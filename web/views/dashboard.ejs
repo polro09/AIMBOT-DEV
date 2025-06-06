@@ -1,0 +1,344 @@
+<div class="mb-8">
+    <h2 class="text-3xl font-bold mb-2">관리자 대시보드</h2>
+    <p class="text-gray-400">환영합니다, <%= user.username %>님!</p>
+</div>
+
+<!-- 봇 제어 패널 -->
+<div class="glass-dark rounded-lg p-6 mb-8">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-robot mr-2 text-purple-400"></i>봇 제어
+    </h3>
+    <div class="grid md:grid-cols-4 gap-4">
+        <div class="text-center">
+            <p class="text-sm text-gray-400 mb-2">상태</p>
+            <p class="text-lg font-semibold">
+                <span class="inline-block w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                온라인
+            </p>
+        </div>
+        <button onclick="controlBot('restart')" class="bg-orange-600 hover:bg-orange-700 px-4 py-3 rounded transition hover-scale">
+            <i class="fas fa-sync-alt mr-2"></i>재시작
+        </button>
+        <button onclick="controlBot('stop')" class="bg-red-600 hover:bg-red-700 px-4 py-3 rounded transition hover-scale">
+            <i class="fas fa-power-off mr-2"></i>종료
+        </button>
+        <div class="text-center">
+            <p class="text-sm text-gray-400 mb-2">가동 시간</p>
+            <p class="text-lg font-semibold" id="uptime">계산 중...</p>
+        </div>
+    </div>
+</div>
+
+<!-- 통계 카드 -->
+<div class="grid md:grid-cols-5 gap-6 mb-8">
+    <div class="glass-dark rounded-lg p-6 hover-scale">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-400 text-sm">총 서버</p>
+                <p class="text-3xl font-bold"><%= botStatus.guildCount || 0 %></p>
+            </div>
+            <i class="fas fa-server text-4xl text-purple-400"></i>
+        </div>
+    </div>
+    
+    <div class="glass-dark rounded-lg p-6 hover-scale">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-400 text-sm">총 유저</p>
+                <p class="text-3xl font-bold"><%= botStatus.userCount || 0 %></p>
+            </div>
+            <i class="fas fa-users text-4xl text-blue-400"></i>
+        </div>
+    </div>
+    
+    <div class="glass-dark rounded-lg p-6 hover-scale">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-400 text-sm">핑</p>
+                <p class="text-3xl font-bold"><%= botStatus.ping || 0 %>ms</p>
+            </div>
+            <i class="fas fa-signal text-4xl text-green-400"></i>
+        </div>
+    </div>
+    
+    <div class="glass-dark rounded-lg p-6 hover-scale">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-400 text-sm">웹 유저</p>
+                <p class="text-3xl font-bold"><%= userStats.total || 0 %></p>
+            </div>
+            <i class="fas fa-globe text-4xl text-indigo-400"></i>
+        </div>
+    </div>
+    
+    <div class="glass-dark rounded-lg p-6 hover-scale">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-400 text-sm">데이터</p>
+                <p class="text-3xl font-bold"><%= stats.fileCount || 0 %></p>
+            </div>
+            <i class="fas fa-database text-4xl text-orange-400"></i>
+        </div>
+    </div>
+</div>
+
+<!-- 서버 목록 -->
+<div class="glass-dark rounded-lg p-6 mb-8">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-list mr-2 text-purple-400"></i>서버 목록
+    </h3>
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="border-b border-gray-700">
+                <tr>
+                    <th class="text-left py-3 px-4">서버</th>
+                    <th class="text-left py-3 px-4">멤버 수</th>
+                    <th class="text-left py-3 px-4">부스트</th>
+                    <th class="text-left py-3 px-4">가입일</th>
+                    <th class="text-left py-3 px-4">생성일</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800">
+                <% guilds.forEach(guild => { %>
+                    <tr class="hover:bg-gray-800 transition">
+                        <td class="py-3 px-4">
+                            <div class="flex items-center">
+                                <% if (guild.icon) { %>
+                                    <img src="<%= guild.icon %>" alt="<%= guild.name %>" class="w-10 h-10 rounded-full mr-3">
+                                <% } else { %>
+                                    <div class="w-10 h-10 bg-gray-700 rounded-full mr-3 flex items-center justify-center">
+                                        <i class="fas fa-server text-gray-400"></i>
+                                    </div>
+                                <% } %>
+                                <div>
+                                    <p class="font-medium"><%= guild.name %></p>
+                                    <p class="text-xs text-gray-400"><%= guild.id %></p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="text-sm"><%= guild.memberCount.toLocaleString() %></span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="text-sm">
+                                <% if (guild.boostLevel > 0) { %>
+                                    <span class="text-pink-400">
+                                        <i class="fas fa-gem"></i> 레벨 <%= guild.boostLevel %> (<%= guild.boostCount %>)
+                                    </span>
+                                <% } else { %>
+                                    <span class="text-gray-500">없음</span>
+                                <% } %>
+                            </span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="text-sm text-gray-400">
+                                <%= new Date(guild.joinedAt).toLocaleDateString('ko-KR') %>
+                            </span>
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="text-sm text-gray-400">
+                                <%= new Date(guild.createdAt).toLocaleDateString('ko-KR') %>
+                            </span>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 실시간 로그 -->
+<div class="glass-dark rounded-lg p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold">
+            <i class="fas fa-terminal mr-2 text-purple-400"></i>실시간 로그
+        </h3>
+        <button onclick="refreshLogs()" class="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition">
+            <i class="fas fa-sync-alt mr-1"></i>새로고침
+        </button>
+    </div>
+    <div id="logContainer" class="bg-black bg-opacity-50 rounded p-4 h-96 overflow-y-auto font-mono text-sm">
+        <% logs.reverse().forEach(log => { %>
+            <div class="mb-1">
+                <span class="text-gray-500">[<%= new Date(log.timestamp).toLocaleTimeString('ko-KR') %>]</span>
+                <span class="<%= 
+                    log.level === 'error' ? 'text-red-400' : 
+                    log.level === 'warn' ? 'text-yellow-400' : 
+                    log.level === 'success' ? 'text-green-400' : 
+                    log.level === 'info' ? 'text-blue-400' : 
+                    log.level === 'system' ? 'text-purple-400' : 
+                    'text-gray-400' 
+                %>">[<%= log.level.toUpperCase() %>]</span>
+                <span class="text-gray-300"><%= log.message %></span>
+            </div>
+        <% }) %>
+    </div>
+</div>
+
+<script>
+// 봇 제어
+async function controlBot(action) {
+    const messages = {
+        restart: '봇을 재시작하시겠습니까?\n\n잠시 후 자동으로 다시 시작됩니다.',
+        stop: '봇을 종료하시겠습니까?\n\nPM2를 사용중이라면 pm2 restart 명령으로 다시 시작할 수 있습니다.'
+    };
+    
+    if (!confirm(messages[action])) return;
+    
+    try {
+        const response = await fetch('/api/bot/control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            
+            // 성공 메시지 표시
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'fixed top-4 right-4 bg-purple-600 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            statusDiv.innerHTML = `<i class="fas fa-info-circle mr-2"></i>${result.message}`;
+            document.body.appendChild(statusDiv);
+            
+            // 재시작인 경우 자동 새로고침
+            if (action === 'restart') {
+                setTimeout(() => {
+                    // 재시작 대기 메시지
+                    statusDiv.innerHTML = '<i class="fas fa-sync-alt animate-spin mr-2"></i>봇이 재시작 중입니다...';
+                    
+                    // 주기적으로 서버 상태 확인
+                    let checkCount = 0;
+                    const checkInterval = setInterval(async () => {
+                        checkCount++;
+                        
+                        try {
+                            const pingResponse = await fetch('/api/bot/status');
+                            if (pingResponse.ok) {
+                                // 서버가 다시 온라인
+                                clearInterval(checkInterval);
+                                statusDiv.innerHTML = '<i class="fas fa-check-circle mr-2"></i>봇이 다시 시작되었습니다!';
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1000);
+                            }
+                        } catch (e) {
+                            // 아직 오프라인
+                            console.log('서버 확인 중...', checkCount);
+                        }
+                        
+                        // 30초 후에도 응답이 없으면 수동 새로고침 안내
+                        if (checkCount > 30) {
+                            clearInterval(checkInterval);
+                            statusDiv.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i>수동으로 새로고침해주세요.';
+                        }
+                    }, 1000);
+                }, 2000);
+            } else if (action === 'stop') {
+                // 종료인 경우
+                setTimeout(() => {
+                    document.body.innerHTML = `
+                        <div class="flex items-center justify-center min-h-screen bg-gray-900">
+                            <div class="text-center">
+                                <i class="fas fa-power-off text-6xl text-red-400 mb-4"></i>
+                                <h2 class="text-2xl font-bold mb-2">봇이 종료되었습니다</h2>
+                                <p class="text-gray-400 mb-4">PM2를 사용중이라면 다음 명령으로 재시작할 수 있습니다:</p>
+                                <code class="bg-gray-800 px-4 py-2 rounded text-purple-400">pm2 restart aimdot-bot</code>
+                            </div>
+                        </div>
+                    `;
+                }, 2000);
+            }
+        } else {
+            const error = await response.json();
+            alert('오류: ' + error.message);
+        }
+    } catch (error) {
+        console.error('봇 제어 오류:', error);
+        alert('서버와의 연결이 끊어졌습니다.');
+    }
+}
+
+// 로그 새로고침
+async function refreshLogs() {
+    try {
+        const response = await fetch('/api/logs');
+        if (!response.ok) return;
+        
+        const logs = await response.json();
+        const container = document.getElementById('logContainer');
+        container.innerHTML = '';
+        
+        logs.reverse().forEach(log => {
+            const div = document.createElement('div');
+            div.className = 'mb-1';
+            
+            const time = new Date(log.timestamp).toLocaleTimeString('ko-KR');
+            const levelColor = {
+                error: 'text-red-400',
+                warn: 'text-yellow-400',
+                success: 'text-green-400',
+                info: 'text-blue-400',
+                system: 'text-purple-400',
+                module: 'text-indigo-400',
+                debug: 'text-gray-500'
+            }[log.level] || 'text-gray-400';
+            
+            div.innerHTML = `
+                <span class="text-gray-500">[${time}]</span>
+                <span class="${levelColor}">[${log.level.toUpperCase()}]</span>
+                <span class="text-gray-300">${log.message}</span>
+            `;
+            
+            container.appendChild(div);
+        });
+        
+        container.scrollTop = container.scrollHeight;
+    } catch (error) {
+        console.error('로그 새로고침 실패:', error);
+    }
+}
+
+// 가동 시간 업데이트
+let uptimeInterval;
+function updateUptime() {
+    fetch('/api/bot/status')
+        .then(res => res.json())
+        .then(data => {
+            if (data.uptime) {
+                const hours = Math.floor(data.uptime / 3600);
+                const minutes = Math.floor((data.uptime % 3600) / 60);
+                const seconds = Math.floor(data.uptime % 60);
+                const uptimeElement = document.getElementById('uptime');
+                if (uptimeElement) {
+                    uptimeElement.textContent = `${hours}시간 ${minutes}분 ${seconds}초`;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('봇 상태 업데이트 실패:', error);
+        });
+}
+
+// 초기화
+document.addEventListener('DOMContentLoaded', () => {
+    updateUptime();
+    uptimeInterval = setInterval(updateUptime, 1000);
+    setInterval(refreshLogs, 10000); // 10초마다 로그 새로고침
+});
+
+// 페이지 가시성 변경 감지 (탭 전환 시)
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        updateUptime();
+        refreshLogs();
+    }
+});
+
+// 페이지 언로드 시 인터벌 정리
+window.addEventListener('beforeunload', () => {
+    if (uptimeInterval) {
+        clearInterval(uptimeInterval);
+    }
+});
+</script>

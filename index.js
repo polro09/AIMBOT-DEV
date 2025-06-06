@@ -125,25 +125,77 @@ process.on('unhandledRejection', error => {
 // 봇 시작
 async function start() {
     try {
-        logger.system('🚀 봇을 시작하는 중...');
+        logger.banner('AIMDOT.DEV BOT', require('chalk').cyan);
+        logger.separator();
+        logger.system('🚀 시스템을 시작하는 중...');
+        logger.separator();
+        
+        // 환경 변수 확인
+        const requiredEnvVars = ['BOT_TOKEN'];
+        const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+        
+        if (missingVars.length > 0) {
+            logger.error(`❌ 필수 환경 변수가 없습니다: ${missingVars.join(', ')}`);
+            logger.info('💡 .env 파일을 확인하고 필요한 값을 설정하세요.');
+            process.exit(1);
+        }
         
         // 이벤트 로드
         await loadEvents();
         
         // 봇 로그인
+        logger.info('🤖 Discord 봇 로그인 중...');
         await client.login(process.env.BOT_TOKEN);
+        
+        // 웹 대시보드 시작 (옵션)
+        if (process.env.ENABLE_WEB_DASHBOARD === 'true') {
+            logger.info('🌐 웹 대시보드를 시작하는 중...');
+            
+            // 웹 서버 환경 변수 확인
+            const webRequiredVars = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET'];
+            const missingWebVars = webRequiredVars.filter(varName => !process.env[varName]);
+            
+            if (missingWebVars.length > 0) {
+                logger.warn(`⚠️ 웹 대시보드 환경 변수가 없습니다: ${missingWebVars.join(', ')}`);
+                logger.info('💡 웹 대시보드를 사용하려면 .env 파일에서 설정하세요.');
+            } else {
+                try {
+                    const { startWebServer } = require('./web/server');
+                    startWebServer();
+                } catch (webError) {
+                    logger.error(`❌ 웹 서버 시작 실패: ${webError.message}`);
+                    logger.info('💡 웹 대시보드 없이 봇만 실행됩니다.');
+                }
+            }
+        } else {
+            logger.info('ℹ️ 웹 대시보드가 비활성화되어 있습니다.');
+            logger.info('💡 활성화하려면 .env에서 ENABLE_WEB_DASHBOARD=true로 설정하세요.');
+        }
+        
     } catch (error) {
-        logger.error(`❌ 봇 시작 실패: ${error.message}`);
+        logger.error(`❌ 시작 실패: ${error.message}`);
         process.exit(1);
     }
 }
 
 // 종료 처리
 process.on('SIGINT', () => {
-    logger.system('🛑 봇을 종료하는 중...');
-    client.destroy();
+    logger.separator();
+    logger.system('🛑 시스템을 종료하는 중...');
+    
+    // 봇 종료
+    if (client) {
+        logger.info('🤖 Discord 봇 연결 해제 중...');
+        client.destroy();
+    }
+    
+    logger.success('✅ 안전하게 종료되었습니다.');
+    logger.separator();
     process.exit(0);
 });
 
 // 봇 시작
 start();
+
+// 클라이언트 내보내기 (웹 서버에서 사용)
+module.exports = client;

@@ -1,0 +1,267 @@
+<div class="mb-8">
+    <h2 class="text-3xl font-bold mb-2">
+        <i class="fas fa-user-shield mr-2 text-purple-400"></i>권한 관리
+    </h2>
+    <p class="text-gray-400">웹 대시보드 사용자 권한과 페이지 접근 권한을 관리합니다.</p>
+</div>
+
+<!-- 권한 통계 -->
+<div class="grid md:grid-cols-4 gap-4 mb-8">
+    <div class="glass-dark rounded-lg p-4 text-center">
+        <p class="text-2xl font-bold text-purple-400"><%= users.filter(u => u.role === 'admin').length %></p>
+        <p class="text-sm text-gray-400">관리자</p>
+    </div>
+    <div class="glass-dark rounded-lg p-4 text-center">
+        <p class="text-2xl font-bold text-blue-400"><%= users.filter(u => u.role === 'member').length %></p>
+        <p class="text-sm text-gray-400">멤버</p>
+    </div>
+    <div class="glass-dark rounded-lg p-4 text-center">
+        <p class="text-2xl font-bold text-gray-400"><%= users.filter(u => u.role === 'guest').length %></p>
+        <p class="text-sm text-gray-400">게스트</p>
+    </div>
+    <div class="glass-dark rounded-lg p-4 text-center">
+        <p class="text-2xl font-bold text-green-400"><%= users.length %></p>
+        <p class="text-sm text-gray-400">전체 사용자</p>
+    </div>
+</div>
+
+<!-- 탭 메뉴 -->
+<div class="mb-6">
+    <div class="flex space-x-1 bg-gray-900 p-1 rounded-lg">
+        <button onclick="showTab('users')" id="tab-users" class="tab-btn flex-1 px-4 py-2 rounded-md bg-purple-600 text-white transition">
+            <i class="fas fa-users mr-2"></i>사용자 권한
+        </button>
+        <button onclick="showTab('pages')" id="tab-pages" class="tab-btn flex-1 px-4 py-2 rounded-md text-gray-400 hover:text-white transition">
+            <i class="fas fa-file-alt mr-2"></i>페이지 권한
+        </button>
+    </div>
+</div>
+
+<!-- 사용자 권한 탭 -->
+<div id="content-users" class="tab-content">
+    <div class="glass-dark rounded-lg overflow-hidden">
+        <div class="p-6">
+            <h3 class="text-xl font-semibold mb-4">사용자 목록</h3>
+            <p class="text-gray-400 text-sm mb-4">처음 로그인한 사용자는 게스트 권한을 가지며, 홈페이지만 접근 가능합니다.</p>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-900">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            사용자
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            ID
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            현재 권한
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            마지막 로그인
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            권한 변경
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-800">
+                    <% users.forEach(u => { %>
+                        <tr class="hover:bg-gray-900 transition">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <img src="https://cdn.discordapp.com/avatars/<%= u.id %>/<%= u.avatar %>.png" 
+                                         alt="Avatar" class="w-10 h-10 rounded-full mr-3">
+                                    <div>
+                                        <div class="font-medium"><%= u.username %></div>
+                                        <div class="text-sm text-gray-500">#<%= u.discriminator %></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <code class="bg-gray-800 px-2 py-1 rounded text-xs"><%= u.id %></code>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="role-badge role-<%= u.role %>">
+                                    <i class="fas fa-<%= u.role === 'admin' ? 'crown' : u.role === 'member' ? 'user' : 'user-slash' %> mr-1"></i>
+                                    <%= u.role.toUpperCase() %>
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                                <%= new Date(u.lastLogin).toLocaleString('ko-KR') %>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <% if (u.id !== user.id) { %>
+                                    <select onchange="updateUserRole('<%= u.id %>', this.value)" 
+                                            class="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm">
+                                        <option value="guest" <%= u.role === 'guest' ? 'selected' : '' %>>게스트</option>
+                                        <option value="member" <%= u.role === 'member' ? 'selected' : '' %>>멤버</option>
+                                        <option value="admin" <%= u.role === 'admin' ? 'selected' : '' %>>관리자</option>
+                                    </select>
+                                <% } else { %>
+                                    <span class="text-gray-500 text-xs">본인</span>
+                                <% } %>
+                            </td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+        
+        <% if (users.length === 0) { %>
+            <div class="p-8 text-center text-gray-400">
+                <i class="fas fa-users-slash text-4xl mb-4"></i>
+                <p>아직 로그인한 사용자가 없습니다.</p>
+            </div>
+        <% } %>
+    </div>
+</div>
+
+<!-- 페이지 권한 탭 -->
+<div id="content-pages" class="tab-content hidden">
+    <div class="glass-dark rounded-lg p-6">
+        <h3 class="text-xl font-semibold mb-4">페이지별 접근 권한</h3>
+        <p class="text-gray-400 text-sm mb-6">각 페이지에 접근하기 위한 최소 권한을 설정합니다.</p>
+        
+        <div class="space-y-4">
+            <% Object.entries(pagePermissions).forEach(([path, requiredRole]) => { %>
+                <div class="flex items-center justify-between p-4 bg-gray-900 rounded-lg">
+                    <div>
+                        <p class="font-medium"><%= path %></p>
+                        <p class="text-sm text-gray-400">
+                            <%= path === '/' ? '홈페이지' : 
+                                path === '/dashboard' ? '관리자 대시보드' :
+                                path === '/admin/permissions' ? '권한 관리' :
+                                path === '/servers' ? '서버 목록' :
+                                path === '/logs' ? '로그 보기' :
+                                path === '/settings' ? '설정' : path %>
+                        </p>
+                    </div>
+                    <select onchange="updatePagePermission('<%= path %>', this.value)" 
+                            class="bg-gray-800 border border-gray-700 rounded px-4 py-2">
+                        <option value="guest" <%= requiredRole === 'guest' ? 'selected' : '' %>>게스트 이상</option>
+                        <option value="member" <%= requiredRole === 'member' ? 'selected' : '' %>>멤버 이상</option>
+                        <option value="admin" <%= requiredRole === 'admin' ? 'selected' : '' %>>관리자만</option>
+                    </select>
+                </div>
+            <% }) %>
+        </div>
+        
+        <div class="mt-6 p-4 bg-yellow-900 bg-opacity-20 border border-yellow-700 rounded-lg">
+            <p class="text-yellow-400 text-sm">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                권한 변경은 즉시 적용되며, 낮은 권한의 사용자는 해당 페이지에 접근할 수 없게 됩니다.
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid;
+}
+
+.role-admin {
+    background-color: rgba(251, 191, 36, 0.1);
+    color: #fbbf24;
+    border-color: #fbbf24;
+}
+
+.role-member {
+    background-color: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.role-guest {
+    background-color: rgba(156, 163, 175, 0.1);
+    color: #9ca3af;
+    border-color: #9ca3af;
+}
+
+.tab-btn {
+    cursor: pointer;
+}
+
+.tab-btn:hover {
+    background-color: rgba(147, 51, 234, 0.1);
+}
+</style>
+
+<script>
+// 탭 전환
+function showTab(tab) {
+    // 모든 탭 버튼과 콘텐츠 숨기기
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-purple-600', 'text-white');
+        btn.classList.add('text-gray-400');
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // 선택된 탭 표시
+    document.getElementById(`tab-${tab}`).classList.add('bg-purple-600', 'text-white');
+    document.getElementById(`tab-${tab}`).classList.remove('text-gray-400');
+    document.getElementById(`content-${tab}`).classList.remove('hidden');
+}
+
+// 사용자 권한 업데이트
+async function updateUserRole(userId, newRole) {
+    if (!confirm(`이 사용자의 권한을 ${newRole.toUpperCase()}로 변경하시겠습니까?`)) {
+        location.reload();
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/permissions/user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, role: newRole })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('권한이 변경되었습니다.');
+            location.reload();
+        } else {
+            alert('오류: ' + result.message);
+        }
+    } catch (error) {
+        alert('권한 변경 중 오류가 발생했습니다.');
+    }
+}
+
+// 페이지 권한 업데이트
+async function updatePagePermission(path, requiredRole) {
+    if (!confirm(`${path} 페이지의 접근 권한을 변경하시겠습니까?`)) {
+        location.reload();
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/admin/permissions/page', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path, role: requiredRole })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('페이지 권한이 변경되었습니다.');
+            location.reload();
+        } else {
+            alert('오류: ' + result.message);
+        }
+    } catch (error) {
+        alert('권한 변경 중 오류가 발생했습니다.');
+    }
+}
+</script>

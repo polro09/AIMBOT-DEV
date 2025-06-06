@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aimdot.dev Bot Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        body {
+            background-color: #0a0a0a;
+            background-image: 
+                radial-gradient(at 20% 80%, rgb(30, 30, 40) 0, transparent 50%),
+                radial-gradient(at 80% 20%, rgb(40, 30, 40) 0, transparent 50%),
+                radial-gradient(at 40% 40%, rgb(20, 20, 30) 0, transparent 50%);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1e 100%);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+        
+        .glass-dark {
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+        }
+        
+        .loading-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(147, 51, 234, 0.4) 20%,
+                rgba(147, 51, 234, 0.8) 50%,
+                rgba(147, 51, 234, 0.4) 80%,
+                transparent 100%
+            );
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .hover-scale {
+            transition: all 0.3s ease;
+        }
+        
+        .hover-scale:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(147, 51, 234, 0.2);
+        }
+        
+        .neon-text {
+            text-shadow: 0 0 10px rgba(147, 51, 234, 0.8),
+                         0 0 20px rgba(147, 51, 234, 0.6),
+                         0 0 30px rgba(147, 51, 234, 0.4);
+        }
+        
+        /* 스크롤바 스타일 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.4);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: rgba(147, 51, 234, 0.5);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(147, 51, 234, 0.7);
+        }
+    </style>
+</head>
+<body class="bg-black text-gray-100 min-h-screen">
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-black">
+        <div class="text-center">
+            <img src="https://i.imgur.com/Sd8qK9c.gif" alt="Logo" class="w-32 h-32 mx-auto mb-8 rounded-full shadow-2xl opacity-90">
+            <h2 class="text-2xl font-bold mb-4 neon-text">Aimdot.dev Bot</h2>
+            <div class="w-64 h-1 bg-gray-800 rounded-full overflow-hidden relative">
+                <div id="loadingBar" class="loading-progress" style="width: 0%"></div>
+            </div>
+            <p id="loadingText" class="mt-4 text-gray-500 text-sm">시스템 초기화 중...</p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="gradient-bg shadow-lg sticky top-0 z-40">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <img src="https://i.imgur.com/Sd8qK9c.gif" alt="Logo" class="w-10 h-10 rounded-full mr-3 opacity-90">
+                    <h1 class="text-xl font-bold">Aimdot.dev Bot</h1>
+                </div>
+                
+                <div class="flex items-center space-x-6">
+                    <a href="/" class="hover:text-purple-400 transition">홈</a>
+                    <% if (typeof user !== 'undefined' && user) { %>
+                        <% if (typeof userRole !== 'undefined' && userRole === 'admin') { %>
+                            <a href="/dashboard" class="hover:text-purple-400 transition">대시보드</a>
+                            <a href="/admin/permissions" class="hover:text-purple-400 transition">권한 관리</a>
+                        <% } else if (typeof userRole !== 'undefined' && userRole === 'member') { %>
+                            <a href="/servers" class="hover:text-purple-400 transition">서버 목록</a>
+                        <% } %>
+                        
+                        <div class="flex items-center space-x-3">
+                            <img src="https://cdn.discordapp.com/avatars/<%= user.id %>/<%= user.avatar %>.png" 
+                                 alt="Avatar" class="w-8 h-8 rounded-full opacity-80">
+                            <div class="text-sm">
+                                <p class="font-medium"><%= user.username %></p>
+                                <p class="text-xs text-gray-500">
+                                    <%= typeof userRole !== 'undefined' ? userRole.toUpperCase() : 'GUEST' %>
+                                </p>
+                            </div>
+                            <a href="/logout" class="bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded text-sm transition">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </a>
+                        </div>
+                    <% } else { %>
+                        <a href="/login" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded transition">
+                            <i class="fab fa-discord mr-2"></i>로그인
+                        </a>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8 fade-in">
+        <%- body %>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-black bg-opacity-50 border-t border-gray-800 py-6 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-gray-600 text-sm">
+                © 2024 Aimdot.dev Bot · 🔺DEUS VULT
+            </p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // 로딩 화면은 세션스토리지를 사용하여 첫 방문시에만 표시
+        const hasVisited = sessionStorage.getItem('hasVisited');
+        const loadingScreen = document.getElementById('loadingScreen');
+        
+        if (hasVisited) {
+            // 이미 방문한 경우 로딩 화면 즉시 숨김
+            loadingScreen.style.display = 'none';
+        } else {
+            // 첫 방문인 경우 로딩 화면 표시
+            sessionStorage.setItem('hasVisited', 'true');
+            
+            // 개선된 로딩 화면
+            const loadingSteps = [
+                { text: '시스템 초기화 중...', duration: 300 },
+                { text: 'API 연결 중...', duration: 500 },
+                { text: '모듈 로딩 중...', duration: 400 },
+                { text: '사용자 정보 확인 중...', duration: 600 },
+                { text: '인터페이스 준비 중...', duration: 400 },
+                { text: '완료!', duration: 200 }
+            ];
+            
+            const loadingText = document.getElementById('loadingText');
+            const loadingBar = document.getElementById('loadingBar');
+            
+            let currentProgress = 0;
+            let stepIndex = 0;
+            
+            function updateLoading() {
+                if (stepIndex >= loadingSteps.length) {
+                    setTimeout(() => {
+                        loadingScreen.style.opacity = '0';
+                        loadingScreen.style.transition = 'opacity 0.5s ease';
+                        setTimeout(() => {
+                            loadingScreen.style.display = 'none';
+                        }, 500);
+                    }, 300);
+                    return;
+                }
+                
+                const step = loadingSteps[stepIndex];
+                loadingText.textContent = step.text;
+                
+                // 랜덤한 진행률 증가
+                const targetProgress = Math.min(100, currentProgress + Math.random() * 30 + 10);
+                
+                // 부드러운 애니메이션
+                const animateProgress = () => {
+                    if (currentProgress < targetProgress) {
+                        currentProgress += 1;
+                        loadingBar.style.width = currentProgress + '%';
+                        requestAnimationFrame(animateProgress);
+                    } else {
+                        stepIndex++;
+                        setTimeout(updateLoading, step.duration);
+                    }
+                };
+                
+                animateProgress();
+            }
+            
+            // 페이지 로드 시 로딩 시작
+            window.addEventListener('DOMContentLoaded', () => {
+                setTimeout(updateLoading, 100);
+            });
+        }
+    </script>
+</body>
+</html>
