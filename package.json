@@ -1,0 +1,34 @@
+{
+  "name": "aimdot-dev-bot",
+  "version": "1.0.0",
+  "description": "Modular Discord Bot - aimdot.dev",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "discord.js",
+    "modular"
+  ],
+  "author": "aimdot.dev",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "moment-timezone": "^0.5.43",
+    "mongoose": "^8.0.3",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "nodemon": "^3.1.10"
+  },
+  "engines": {
+    "node": ">=16.9.0"
+  }
+}
