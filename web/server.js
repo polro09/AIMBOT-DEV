@@ -62,7 +62,7 @@ app.use((req, res, next) => {
 app.use(session({
     secret: CONFIG.SESSION_SECRET,
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true, // true로 변경하여 returnTo를 저장할 수 있도록 함
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
@@ -122,29 +122,42 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
+// 사용자 역할을 자동으로 설정하는 미들웨어
+app.use((req, res, next) => {
+    if (req.user) {
+        req.userRole = permissionManager.getUserRole(req.user.id);
+        res.locals.userRole = req.userRole;
+    }
+    res.locals.user = req.user;
+    next();
+});
+
 // 라우트
 // 홈페이지
 app.get('/', (req, res) => {
-    const userRole = req.user ? permissionManager.getUserRole(req.user.id) : null;
-    res.render('index', { 
-        user: req.user,
-        userRole: userRole
-    });
+    res.render('index');
 });
 
 // 로그인 페이지
 app.get('/login', (req, res) => {
     if (req.isAuthenticated()) {
+        // returnTo가 있으면 그곳으로, 없으면 역할에 따라 리다이렉트
+        const returnTo = req.session.returnTo;
+        if (returnTo) {
+            delete req.session.returnTo;
+            return res.redirect(returnTo);
+        }
+        
         const userRole = permissionManager.getUserRole(req.user.id);
         if (userRole === ROLES.ADMIN) {
             return res.redirect('/dashboard');
         } else if (userRole === ROLES.MEMBER) {
-            return res.redirect('/servers');
+            return res.redirect('/party');
         } else {
             return res.redirect('/');
         }
     }
-    res.render('login', { user: null });
+    res.render('login');
 });
 
 // Discord OAuth2 인증 시작
@@ -166,10 +179,18 @@ app.get('/auth/discord/callback',
         logger.success('🔐 Discord OAuth2 인증 성공');
         const userRole = permissionManager.getUserRole(req.user.id);
         
+        // 이전 페이지로 리다이렉트 (세션에 저장된 경우)
+        const returnTo = req.session.returnTo;
+        if (returnTo) {
+            delete req.session.returnTo;
+            return res.redirect(returnTo);
+        }
+        
+        // 기본 리다이렉트
         if (userRole === ROLES.ADMIN) {
             res.redirect('/dashboard');
         } else if (userRole === ROLES.MEMBER) {
-            res.redirect('/servers');
+            res.redirect('/party');
         } else {
             res.redirect('/');
         }
@@ -189,6 +210,27 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// 파티 라우트 추가 (멤버 이상 접근 가능)
+const partyRoutes = require('./routes/partyRoutes');
+// requireRole을 각 라우트가 아닌 파티 라우트 내부에서 처리하도록 변경
+app.use('/party', (req, res, next) => {
+    // 인증 확인
+    if (!req.isAuthenticated()) {
+        req.session.returnTo = req.originalUrl;
+        return res.redirect('/login');
+    }
+    
+    // 권한 확인
+    const userRole = permissionManager.getUserRole(req.user.id);
+    if (!permissionManager.hasPermission(userRole, ROLES.MEMBER)) {
+        return res.status(403).render('error', { 
+            error: '파티 기능은 멤버 이상만 사용할 수 있습니다.'
+        });
+    }
+    
+    next();
+}, partyRoutes);
+
 // 서버 목록 페이지 (멤버 이상)
 app.get('/servers', requireRole(ROLES.MEMBER), async (req, res) => {
     try {
@@ -205,22 +247,15 @@ app.get('/servers', requireRole(ROLES.MEMBER), async (req, res) => {
         }));
         
         res.render('servers', { 
-            user: req.user,
-            userRole: req.userRole,
             guilds: guilds
         });
     } catch (error) {
         logger.error(`서버 목록 페이지 오류: ${error.message}`);
         res.render('error', { 
-            error: '데이터를 불러오는 중 오류가 발생했습니다.',
-            user: req.user 
+            error: '데이터를 불러오는 중 오류가 발생했습니다.'
         });
     }
 });
-
-// 파티 라우트 추가
-const partyRoutes = require('./routes/partyRoutes');
-app.use('/party', partyRoutes);
 
 // 대시보드 (관리자 전용)
 app.get('/dashboard', requireRole(ROLES.ADMIN), async (req, res) => {
@@ -245,8 +280,6 @@ app.get('/dashboard', requireRole(ROLES.ADMIN), async (req, res) => {
         const logs = logger.getHistory(null, 50);
         
         res.render('dashboard', { 
-            user: req.user,
-            userRole: req.userRole,
             stats: stats,
             userStats: userStats,
             guilds: guilds,
@@ -262,8 +295,7 @@ app.get('/dashboard', requireRole(ROLES.ADMIN), async (req, res) => {
     } catch (error) {
         logger.error(`대시보드 오류: ${error.message}`);
         res.render('error', { 
-            error: '데이터를 불러오는 중 오류가 발생했습니다.',
-            user: req.user 
+            error: '데이터를 불러오는 중 오류가 발생했습니다.'
         });
     }
 });
@@ -275,8 +307,6 @@ app.get('/admin/permissions', requireRole(ROLES.ADMIN), async (req, res) => {
         const pagePermissions = permissionManager.permissions.pagePermissions;
         
         res.render('admin/permissions', { 
-            user: req.user,
-            userRole: req.userRole,
             users: users,
             pagePermissions: pagePermissions,
             roles: ROLES
@@ -284,8 +314,7 @@ app.get('/admin/permissions', requireRole(ROLES.ADMIN), async (req, res) => {
     } catch (error) {
         logger.error(`권한 관리 페이지 오류: ${error.message}`);
         res.render('error', { 
-            error: '데이터를 불러오는 중 오류가 발생했습니다.',
-            user: req.user 
+            error: '데이터를 불러오는 중 오류가 발생했습니다.'
         });
     }
 });
@@ -329,16 +358,13 @@ app.get('/admin/party', requireRole(ROLES.ADMIN), async (req, res) => {
         battleHistory.sort((a, b) => new Date(b.completedAt || b.startTime) - new Date(a.completedAt || a.startTime));
         
         res.render('party/admin', {
-            user: req.user,
-            userRole: req.userRole,
             completedParties: completedParties,
             battleHistory: battleHistory.slice(0, 20)
         });
     } catch (error) {
         logger.error(`파티 관리 페이지 오류: ${error.message}`);
         res.render('error', { 
-            error: '데이터를 불러오는 중 오류가 발생했습니다.',
-            user: req.user 
+            error: '데이터를 불러오는 중 오류가 발생했습니다.'
         });
     }
 });
@@ -469,8 +495,7 @@ app.get('/party/api/details/:partyId', requireAuth, async (req, res) => {
 // 404 처리
 app.use((req, res) => {
     res.status(404).render('error', { 
-        error: '페이지를 찾을 수 없습니다.',
-        user: req.user 
+        error: '페이지를 찾을 수 없습니다.'
     });
 });
 
@@ -478,8 +503,7 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
     logger.error(`서버 오류: ${err.stack || err.message || err}`);
     res.status(500).render('error', { 
-        error: '서버 오류가 발생했습니다.',
-        user: req.user 
+        error: '서버 오류가 발생했습니다.'
     });
 });
 

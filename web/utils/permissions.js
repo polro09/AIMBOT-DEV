@@ -13,7 +13,10 @@ const PAGE_PERMISSIONS = {
     '/': ROLES.GUEST,
     '/dashboard': ROLES.ADMIN,
     '/admin/permissions': ROLES.ADMIN,
+    '/admin/party': ROLES.ADMIN,
     '/servers': ROLES.MEMBER,
+    '/party': ROLES.MEMBER,
+    '/party/create': ROLES.MEMBER,
     '/logs': ROLES.ADMIN,
     '/settings': ROLES.MEMBER
 };
@@ -152,12 +155,16 @@ function requireAuth(req, res, next) {
     if (req.isAuthenticated()) {
         return next();
     }
+    // 현재 URL을 세션에 저장
+    req.session.returnTo = req.originalUrl;
     res.redirect('/login');
 }
 
 function requireRole(role) {
     return (req, res, next) => {
         if (!req.isAuthenticated()) {
+            // 현재 URL을 세션에 저장
+            req.session.returnTo = req.originalUrl;
             return res.redirect('/login');
         }
         
@@ -169,7 +176,8 @@ function requireRole(role) {
         
         res.status(403).render('error', { 
             error: '접근 권한이 없습니다.',
-            user: req.user 
+            user: req.user,
+            userRole: userRole
         });
     };
 }

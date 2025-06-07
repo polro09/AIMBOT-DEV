@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const dataManager = require('../../utils/dataManager');
 const logger = require('../../utils/logger');
-const { requireAuth, permissionManager } = require('../utils/permissions');
+const { permissionManager } = require('../utils/permissions');
 
 // 파티 설정
 const PARTY_CONFIG = {
@@ -21,13 +21,10 @@ const PARTY_CONFIG = {
 };
 
 // 파티 생성 페이지
-router.get('/create', requireAuth, (req, res) => {
+router.get('/create', (req, res) => {
     const partyType = req.query.type || 'regular_battle';
-    const userRole = req.userRole || permissionManager.getUserRole(req.user.id);
     
     res.render('party/create', {
-        user: req.user,
-        userRole: userRole,
         partyType: partyType,
         partyTypes: PARTY_CONFIG.TYPES,
         classes: PARTY_CONFIG.CLASSES
@@ -35,14 +32,13 @@ router.get('/create', requireAuth, (req, res) => {
 });
 
 // 파티 상세 페이지
-router.get('/:partyId', requireAuth, async (req, res) => {
+router.get('/:partyId', async (req, res) => {
     try {
         const party = await dataManager.read(`party_${req.params.partyId}`);
         
         if (!party) {
             return res.render('error', { 
-                error: '파티를 찾을 수 없습니다.',
-                user: req.user 
+                error: '파티를 찾을 수 없습니다.'
             });
         }
         
@@ -58,8 +54,6 @@ router.get('/:partyId', requireAuth, async (req, res) => {
         }
         
         res.render('party/detail', {
-            user: req.user,
-            userRole: req.userRole,
             party: party,
             teams: teams,
             userStats: userStats,
@@ -70,21 +64,18 @@ router.get('/:partyId', requireAuth, async (req, res) => {
     } catch (error) {
         logger.error(`파티 상세 페이지 오류: ${error.message}`);
         res.render('error', { 
-            error: '파티 정보를 불러올 수 없습니다.',
-            user: req.user 
+            error: '파티 정보를 불러올 수 없습니다.'
         });
     }
 });
 
 // 파티 목록 페이지
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const parties = await getActiveParties();
         const userStats = await getUserStats(req.user.id);
         
         res.render('party/list', {
-            user: req.user,
-            userRole: req.userRole,
             parties: parties,
             userStats: userStats,
             partyTypes: PARTY_CONFIG.TYPES
@@ -92,14 +83,13 @@ router.get('/', requireAuth, async (req, res) => {
     } catch (error) {
         logger.error(`파티 목록 페이지 오류: ${error.message}`);
         res.render('error', { 
-            error: '파티 목록을 불러올 수 없습니다.',
-            user: req.user 
+            error: '파티 목록을 불러올 수 없습니다.'
         });
     }
 });
 
 // 파티 생성 API
-router.post('/api/create', requireAuth, async (req, res) => {
+router.post('/api/create', async (req, res) => {
     try {
         const {
             type,
@@ -145,7 +135,7 @@ router.post('/api/create', requireAuth, async (req, res) => {
 });
 
 // 파티 참여 API
-router.post('/api/join/:partyId', requireAuth, async (req, res) => {
+router.post('/api/join/:partyId', async (req, res) => {
     try {
         const { selectedClass, team } = req.body;
         const partyId = req.params.partyId;
@@ -197,7 +187,7 @@ router.post('/api/join/:partyId', requireAuth, async (req, res) => {
 });
 
 // 파티 나가기 API
-router.post('/api/leave/:partyId', requireAuth, async (req, res) => {
+router.post('/api/leave/:partyId', async (req, res) => {
     try {
         const partyId = req.params.partyId;
         
@@ -213,6 +203,62 @@ router.post('/api/leave/:partyId', requireAuth, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         logger.error(`파티 나가기 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 전투 결과 입력 API (관리자용)
+router.post('/api/result/:partyId', async (req, res) => {
+    try {
+        // 관리자 권한 확인
+        const userRole = permissionManager.getUserRole(req.user.id);
+        if (userRole !== 'admin') {
+            return res.status(403).json({ success: false, error: '권한이 없습니다.' });
+        }
+        
+        const { partyId } = req.params;
+        const results = req.body;
+        
+        const party = await dataManager.read(`party_${partyId}`);
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        // 각 멤버의 결과 저장
+        for (const result of results) {
+            const userData = await dataManager.getUserData(`party_user_${result.userId}`, {
+                wins: 0,
+                losses: 0,
+                totalKills: 0,
+                matches: []
+            });
+            
+            if (result.win) {
+                userData.wins++;
+            } else {
+                userData.losses++;
+            }
+            
+            userData.totalKills += result.kills;
+            userData.matches.push({
+                date: new Date().toLocaleDateString('ko-KR'),
+                partyId,
+                result: result.win ? '승리' : '패배',
+                kills: result.kills
+            });
+            
+            await dataManager.setUserData(`party_user_${result.userId}`, userData);
+        }
+        
+        party.status = 'completed';
+        party.completedAt = new Date().toISOString();
+        
+        await dataManager.write(`party_${partyId}`, party);
+        
+        logger.success(`전투 결과 저장 완료: ${partyId}`);
+        res.json({ success: true });
+    } catch (error) {
+        logger.error(`전투 결과 저장 오류: ${error.message}`);
         res.status(500).json({ success: false, error: error.message });
     }
 });

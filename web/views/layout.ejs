@@ -130,9 +130,15 @@
                 <div class="flex items-center space-x-6">
                     <a href="/" class="hover:text-purple-400 transition">홈</a>
                     <% if (typeof user !== 'undefined' && user) { %>
+                        <% if (typeof userRole !== 'undefined' && (userRole === 'admin' || userRole === 'member')) { %>
+                            <a href="/party" class="hover:text-red-400 transition">
+                                <i class="fas fa-sword mr-1"></i>파티
+                            </a>
+                        <% } %>
                         <% if (typeof userRole !== 'undefined' && userRole === 'admin') { %>
                             <a href="/dashboard" class="hover:text-purple-400 transition">대시보드</a>
                             <a href="/admin/permissions" class="hover:text-purple-400 transition">권한 관리</a>
+                            <a href="/admin/party" class="hover:text-purple-400 transition">파티 관리</a>
                         <% } else if (typeof userRole !== 'undefined' && userRole === 'member') { %>
                             <a href="/servers" class="hover:text-purple-400 transition">서버 목록</a>
                         <% } %>

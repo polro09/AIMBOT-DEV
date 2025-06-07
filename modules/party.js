@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, EmbedBuilder } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 const { createEmbed, successEmbed, errorEmbed } = require('../utils/embedBuilder');
 const logger = require('../utils/logger');
 const dataManager = require('../utils/dataManager');
@@ -80,112 +80,38 @@ module.exports = {
     // 파티 모집 메뉴 표시
     async showPartyMenu(message, client) {
         try {
-            // 사용자 통계 가져오기
-            const userStats = await this.getUserStats(message.author.id);
-            
             const embed = createEmbed({
-                title: '⚔️ 파티 모집 타입 선택',
-                description: '아래 드롭다운 메뉴에서 모집할 파티 타입을 선택해주세요.',
+                title: '⚔️ 파티 모집 시스템',
+                description: '아래 버튼을 통해 파티를 생성하거나 모집 중인 파티를 확인하세요.',
                 color: 0xFF0000,
                 guild: message.guild,
                 fields: [
                     {
-                        name: '❌ 모의전',
-                        value: '클랜원들끼리 진행하는 연습 경기',
-                        inline: true
-                    },
-                    {
-                        name: '🔥 정규전',
-                        value: '적대 클랜원과의 경쟁',
-                        inline: true
-                    },
-                    {
-                        name: '⚫ 검은발톱',
-                        value: '검은 발톱 퀘스트',
-                        inline: true
-                    },
-                    {
-                        name: '⚡ PK',
-                        value: '적대 클랜원 공격',
-                        inline: true
-                    },
-                    {
-                        name: '👑 레이드',
-                        value: '북부 및 사막 보스 레이드',
-                        inline: true
-                    },
-                    {
-                        name: '🎯 훈련',
-                        value: '투창, 마장 등 병과기 훈련',
-                        inline: true
-                    },
-                    {
-                        name: '📊 내 정보',
-                        value: `점수: ${userStats.points} | 승률: ${userStats.winRate}% | 평균 킬: ${userStats.avgKills}`,
+                        name: '📋 파티 타입',
+                        value: '• **모의전** - 클랜원들끼리 진행하는 연습 경기\n' +
+                               '• **정규전** - 적대 클랜원과의 경쟁\n' +
+                               '• **검은발톱** - 검은 발톱 퀘스트\n' +
+                               '• **PK** - 적대 클랜원 공격\n' +
+                               '• **레이드** - 북부 및 사막 보스 레이드\n' +
+                               '• **훈련** - 투창, 마장 등 병과기 훈련',
                         inline: false
                     }
                 ],
                 thumbnail: 'https://i.imgur.com/6G5xYJJ.png' // 파티 아이콘
             });
             
-            // 파티 타입 선택 드롭다운
-            const typeSelect = new ActionRowBuilder()
-                .addComponents(
-                    new StringSelectMenuBuilder()
-                        .setCustomId('party_type_select')
-                        .setPlaceholder('파티 타입을 선택하세요')
-                        .addOptions([
-                            {
-                                label: '모의전',
-                                description: '클랜원들끼리 진행하는 연습 경기',
-                                value: 'mock_battle',
-                                emoji: '❌'
-                            },
-                            {
-                                label: '정규전',
-                                description: '적대 클랜원과의 경쟁',
-                                value: 'regular_battle',
-                                emoji: '🔥'
-                            },
-                            {
-                                label: '검은발톱',
-                                description: '검은 발톱 퀘스트',
-                                value: 'black_claw',
-                                emoji: '⚫'
-                            },
-                            {
-                                label: 'PK',
-                                description: '적대 클랜원 공격',
-                                value: 'pk',
-                                emoji: '⚡'
-                            },
-                            {
-                                label: '레이드',
-                                description: '보스 레이드',
-                                value: 'raid',
-                                emoji: '👑'
-                            },
-                            {
-                                label: '훈련',
-                                description: '병과기 훈련',
-                                value: 'training',
-                                emoji: '🎯'
-                            }
-                        ])
-                );
-            
             // 버튼 액션
             const buttons = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
-                        .setLabel('웹에서 파티 만들기')
+                        .setLabel('파티 생성하기')
                         .setStyle(ButtonStyle.Link)
                         .setURL(`${CONFIG.WEB_URL}/party/create`)
-                        .setEmoji('🌐'),
+                        .setEmoji('➕'),
                     new ButtonBuilder()
-                        .setCustomId('party_list')
-                        .setLabel('모집 중인 파티 보기')
-                        .setStyle(ButtonStyle.Primary)
+                        .setLabel('모집 중인 파티')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(`${CONFIG.WEB_URL}/party`)
                         .setEmoji('📋'),
                     new ButtonBuilder()
                         .setCustomId('party_my_stats')
@@ -196,7 +122,7 @@ module.exports = {
             
             await message.reply({
                 embeds: [embed],
-                components: [typeSelect, buttons]
+                components: [buttons]
             });
             
             logger.success(`파티 모집 메뉴 실행: ${message.author.tag}`);
@@ -208,16 +134,8 @@ module.exports = {
     
     // 인터랙션 처리
     async handleInteraction(interaction, client) {
-        if (interaction.isStringSelectMenu()) {
-            if (interaction.customId === 'party_type_select') {
-                await this.handlePartyTypeSelect(interaction, client);
-            }
-        }
-        
         if (interaction.isButton()) {
-            if (interaction.customId === 'party_list') {
-                await this.showPartyList(interaction, client);
-            } else if (interaction.customId === 'party_my_stats') {
+            if (interaction.customId === 'party_my_stats') {
                 await this.showDetailedStats(interaction, client);
             } else if (interaction.customId.startsWith('party_join_')) {
                 await this.handlePartyJoin(interaction, client);
@@ -225,94 +143,9 @@ module.exports = {
         }
     },
     
-    // 파티 타입 선택 처리
-    async handlePartyTypeSelect(interaction, client) {
-        await interaction.deferUpdate();
-        
-        const partyType = interaction.values[0];
-        const typeNames = {
-            'mock_battle': '모의전',
-            'regular_battle': '정규전',
-            'black_claw': '검은발톱',
-            'pk': 'PK',
-            'raid': '레이드',
-            'training': '훈련'
-        };
-        
-        const embed = createEmbed({
-            title: `⚔️ ${typeNames[partyType]} 파티 생성`,
-            description: `**${typeNames[partyType]}** 파티를 생성하려면 아래 버튼을 클릭하세요.\n\n웹 페이지에서 상세 설정을 할 수 있습니다.`,
-            color: 0xFF0000,
-            guild: interaction.guild,
-            fields: [
-                {
-                    name: '📝 필요 정보',
-                    value: '• 파티 제목\n• 시작 시간\n• 참가 조건\n• 상세 설명',
-                    inline: true
-                },
-                {
-                    name: '⚙️ 설정 가능 항목',
-                    value: '• 팀 구성 (1팀/2팀)\n• 최대 인원\n• 병과 제한\n• 최소 점수',
-                    inline: true
-                }
-            ]
-        });
-        
-        const button = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setLabel('파티 생성하기')
-                    .setStyle(ButtonStyle.Link)
-                    .setURL(`${CONFIG.WEB_URL}/party/create?type=${partyType}`)
-                    .setEmoji('🌐')
-            );
-        
-        await interaction.editReply({
-            embeds: [embed],
-            components: [button]
-        });
-    },
-    
-    // 모집 중인 파티 목록 표시
-    async showPartyList(interaction, client) {
-        await interaction.deferUpdate();
-        
-        try {
-            const parties = await this.getActiveParties();
-            
-            if (parties.length === 0) {
-                const embed = createEmbed({
-                    title: '📋 모집 중인 파티',
-                    description: '현재 모집 중인 파티가 없습니다.',
-                    color: 0xFF0000,
-                    guild: interaction.guild
-                });
-                
-                await interaction.editReply({ embeds: [embed], components: [] });
-                return;
-            }
-            
-            const embed = createEmbed({
-                title: '📋 모집 중인 파티 목록',
-                description: '참여하고 싶은 파티의 링크를 클릭하세요.',
-                color: 0xFF0000,
-                guild: interaction.guild,
-                fields: parties.map(party => ({
-                    name: `${party.icon} ${party.title}`,
-                    value: `타입: **${party.type}** | 인원: **${party.currentMembers}/${party.maxMembers}**\n시작: ${party.startTime}\n[🔗 참여하기](${CONFIG.WEB_URL}/party/${party.id})`,
-                    inline: true
-                }))
-            });
-            
-            await interaction.editReply({ embeds: [embed], components: [] });
-        } catch (error) {
-            logger.error(`파티 목록 조회 오류: ${error.message}`);
-        }
-    },
-    
-    // 상세 통계 표시
+    // 상세 통계 표시 (ephemeral)
     async showDetailedStats(interaction, client) {
-        await interaction.deferUpdate();
+        await interaction.deferReply({ ephemeral: true });
         
         try {
             const userId = interaction.user.id;
@@ -373,9 +206,13 @@ module.exports = {
                 thumbnail: interaction.user.displayAvatarURL({ dynamic: true })
             });
             
-            await interaction.editReply({ embeds: [embed], components: [] });
+            await interaction.editReply({ embeds: [embed], ephemeral: true });
         } catch (error) {
             logger.error(`상세 통계 조회 오류: ${error.message}`);
+            await interaction.editReply({ 
+                embeds: [errorEmbed('❌ 오류 발생', '통계를 불러올 수 없습니다.', { guild: interaction.guild })],
+                ephemeral: true 
+            });
         }
     },
     
@@ -418,7 +255,7 @@ module.exports = {
             });
             
             // 전투 결과 입력 API (관리자)
-            app.post('/api/party/result/:partyId', this.authMiddleware, async (req, res) => {
+            app.post('/party/api/result/:partyId', async (req, res) => {
                 try {
                     const { partyId } = req.params;
                     const results = req.body;
@@ -461,15 +298,26 @@ module.exports = {
         // Discord 채널에 알림
         const channel = client.channels.cache.get(CONFIG.CHANNEL_IDS.partyNotice);
         if (channel) {
+            const partyTypeInfo = {
+                'mock_battle': { name: '모의전', icon: '❌' },
+                'regular_battle': { name: '정규전', icon: '🔥' },
+                'black_claw': { name: '검은발톱', icon: '⚫' },
+                'pk': { name: 'PK', icon: '⚡' },
+                'raid': { name: '레이드', icon: '👑' },
+                'training': { name: '훈련', icon: '🎯' }
+            };
+            
+            const typeInfo = partyTypeInfo[party.type] || { name: '기타', icon: '⚔️' };
+            
             const embed = createEmbed({
-                title: `⚔️ 새로운 ${party.type} 파티 모집!`,
+                title: `${typeInfo.icon} 새로운 ${typeInfo.name} 파티 모집!`,
                 description: `**${party.title}**\n\n${party.description}`,
                 color: 0xFF0000,
                 guild: channel.guild,
                 fields: [
                     {
                         name: '📅 시작 시간',
-                        value: party.startTime,
+                        value: new Date(party.startTime).toLocaleString('ko-KR'),
                         inline: true
                     },
                     {
@@ -565,24 +413,60 @@ module.exports = {
     
     // 활성 파티 목록 가져오기
     async getActiveParties() {
-        // 실제로는 데이터베이스에서 가져와야 함
-        return [
-            {
-                id: '1',
-                icon: '⚔️',
-                title: '정규전 5vs5',
-                type: '정규전',
-                currentMembers: 3,
-                maxMembers: 10,
-                startTime: '오후 9:00'
+        const files = await require('fs').promises.readdir(require('path').join(process.cwd(), 'data'));
+        const parties = [];
+        
+        for (const file of files) {
+            if (file.startsWith('party_') && file.endsWith('.json')) {
+                const party = await dataManager.read(file.replace('.json', ''));
+                if (party && party.status === 'recruiting' && new Date(party.startTime) > new Date()) {
+                    const partyTypeInfo = {
+                        'mock_battle': { name: '모의전', icon: '❌' },
+                        'regular_battle': { name: '정규전', icon: '🔥' },
+                        'black_claw': { name: '검은발톱', icon: '⚫' },
+                        'pk': { name: 'PK', icon: '⚡' },
+                        'raid': { name: '레이드', icon: '👑' },
+                        'training': { name: '훈련', icon: '🎯' }
+                    };
+                    
+                    const typeInfo = partyTypeInfo[party.type] || { name: '기타', icon: '⚔️' };
+                    
+                    parties.push({
+                        id: party.id,
+                        icon: typeInfo.icon,
+                        title: party.title,
+                        type: typeInfo.name,
+                        currentMembers: party.members.length,
+                        maxMembers: party.maxMembers,
+                        startTime: new Date(party.startTime).toLocaleString('ko-KR')
+                    });
+                }
             }
-        ];
+        }
+        
+        return parties;
     },
     
     // 랭킹 계산
     async calculateRanking(userId, userPoints) {
-        // 실제로는 모든 유저의 점수를 비교해야 함
-        return 1;
+        const files = await require('fs').promises.readdir(require('path').join(process.cwd(), 'data'));
+        const allUsers = [];
+        
+        for (const file of files) {
+            if (file.startsWith('user_party_user_') && file.endsWith('.json')) {
+                const userData = await dataManager.read(file.replace('.json', ''));
+                if (userData) {
+                    const totalGames = userData.wins + userData.losses;
+                    const points = (userData.wins * CONFIG.POINTS.win) + (userData.losses * CONFIG.POINTS.lose) + (userData.totalKills * CONFIG.POINTS.killPerPoint);
+                    allUsers.push({ userId: userData.id, points });
+                }
+            }
+        }
+        
+        allUsers.sort((a, b) => b.points - a.points);
+        const ranking = allUsers.findIndex(u => u.userId === `party_user_${userId}`) + 1;
+        
+        return ranking || allUsers.length + 1;
     },
     
     // 파티 참여
@@ -597,9 +481,25 @@ module.exports = {
             return { success: false, error: '이미 참여한 파티입니다.' };
         }
         
+        // 파티 타입 정보
+        const partyTypeKey = party.type;
+        const partyLimits = {
+            'mock_battle': { teams: 2, maxPerTeam: 5 },
+            'regular_battle': { teams: 2, maxPerTeam: 5 },
+            'black_claw': { teams: 1, maxPerTeam: 5 },
+            'pk': { teams: 1, maxPerTeam: 5 },
+            'raid': { teams: 1, maxPerTeam: 5 },
+            'training': { teams: 2, maxPerTeam: 5 }
+        };
+        
+        const limit = partyLimits[partyTypeKey];
+        if (!limit) {
+            return { success: false, error: '잘못된 파티 타입입니다.' };
+        }
+        
         // 인원 확인
         const teamMembers = party.members.filter(m => m.team === team);
-        if (teamMembers.length >= CONFIG.PARTY_LIMITS[party.type].maxPerTeam) {
+        if (teamMembers.length >= limit.maxPerTeam) {
             return { success: false, error: '해당 팀이 가득 찼습니다.' };
         }
         
@@ -650,6 +550,14 @@ module.exports = {
         }
         
         party.status = 'completed';
+        party.completedAt = new Date().toISOString();
+        if (results.some(r => r.win)) {
+            const winners = results.filter(r => r.win);
+            if (winners.length > 0) {
+                party.winnerTeam = winners[0].team || 1;
+            }
+        }
+        
         await dataManager.write(`party_${partyId}`, party);
         
         logger.success(`전투 결과 저장 완료: ${partyId}`);
