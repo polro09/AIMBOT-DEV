@@ -161,7 +161,7 @@ async function start() {
             } else {
                 try {
                     const { startWebServer } = require('./web/server');
-                    startWebServer();
+                    await startWebServer();
                 } catch (webError) {
                     logger.error(`❌ 웹 서버 시작 실패: ${webError.message}`);
                     logger.info('💡 웹 대시보드 없이 봇만 실행됩니다.');

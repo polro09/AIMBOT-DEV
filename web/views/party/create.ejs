@@ -1,0 +1,192 @@
+<div class="mb-8">
+    <h2 class="text-3xl font-bold mb-2">
+        <i class="fas fa-plus-circle mr-2 text-red-400"></i>파티 생성
+    </h2>
+    <p class="text-gray-400">새로운 파티를 생성하고 클랜원들을 모집하세요.</p>
+</div>
+
+<div class="glass-dark rounded-lg p-6">
+    <form id="partyCreateForm">
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- 파티 타입 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">
+                    <i class="fas fa-flag mr-1"></i>파티 타입
+                </label>
+                <select name="type" id="partyType" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-red-500 focus:outline-none">
+                    <% Object.entries(partyTypes).forEach(([key, type]) => { %>
+                        <option value="<%= key %>" <%= partyType === key ? 'selected' : '' %>>
+                            <%= type.icon %> <%= type.name %>
+                        </option>
+                    <% }); %>
+                </select>
+            </div>
+            
+            <!-- 시작 시간 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">
+                    <i class="fas fa-clock mr-1"></i>시작 시간
+                </label>
+                <input type="datetime-local" name="startTime" required
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-red-500 focus:outline-none">
+            </div>
+            
+            <!-- 파티 제목 -->
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-400 mb-2">
+                    <i class="fas fa-heading mr-1"></i>파티 제목
+                </label>
+                <input type="text" name="title" placeholder="예: 정규전 5vs5 진지한 전투" required
+                       maxlength="50"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-red-500 focus:outline-none">
+            </div>
+            
+            <!-- 설명 -->
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-400 mb-2">
+                    <i class="fas fa-align-left mr-1"></i>상세 설명
+                </label>
+                <textarea name="description" rows="4" required
+                          placeholder="파티에 대한 상세 설명을 입력하세요..."
+                          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-red-500 focus:outline-none"></textarea>
+            </div>
+            
+            <!-- 참가 조건 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">
+                    <i class="fas fa-list-check mr-1"></i>참가 조건
+                </label>
+                <input type="text" name="requirements" placeholder="예: 디스코드 필수, 마이크 필수"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-red-500 focus:outline-none">
+            </div>
+            
+            <!-- 최소 점수 -->
+            <div>
+                <label class="block text-sm font-medium text-gray-400 mb-2">
+                    <i class="fas fa-trophy mr-1"></i>최소 점수 제한
+                </label>
+                <input type="number" name="minScore" min="0" placeholder="0 (제한 없음)"
+                       class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 focus:border-red-500 focus:outline-none">
+            </div>
+        </div>
+        
+        <!-- 팀 구성 미리보기 -->
+        <div class="mt-6 p-4 bg-gray-900 rounded-lg">
+            <h3 class="text-lg font-semibold mb-3">
+                <i class="fas fa-users mr-2"></i>팀 구성 정보
+            </h3>
+            <div id="teamPreview" class="grid md:grid-cols-2 gap-4">
+                <!-- JavaScript로 동적 생성 -->
+            </div>
+        </div>
+        
+        <!-- 버튼 -->
+        <div class="mt-6 flex justify-end space-x-4">
+            <a href="/party" class="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+                <i class="fas fa-arrow-left mr-2"></i>취소
+            </a>
+            <button type="submit" class="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg transition">
+                <i class="fas fa-check mr-2"></i>파티 생성
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+// 파티 타입별 팀 구성 정보
+const partyConfigs = JSON.parse('<%- JSON.stringify(partyTypes).replace(/'/g, "\\'") %>');
+
+// 팀 구성 미리보기 업데이트
+function updateTeamPreview() {
+    const selectedType = document.getElementById('partyType').value;
+    const config = partyConfigs[selectedType];
+    const preview = document.getElementById('teamPreview');
+    
+    preview.innerHTML = '';
+    
+    if (config.teams === 1) {
+        preview.innerHTML = '<div class="col-span-2 text-center">' +
+            '<p class="text-2xl font-bold text-red-400">' + config.maxPerTeam + '명</p>' +
+            '<p class="text-gray-400">단일 팀 구성</p>' +
+            '</div>';
+    } else {
+        for (let i = 1; i <= config.teams; i++) {
+            preview.innerHTML += '<div class="text-center">' +
+                '<p class="text-xl font-semibold mb-1">' + i + '팀</p>' +
+                '<p class="text-2xl font-bold text-red-400">' + config.maxPerTeam + '명</p>' +
+                '<p class="text-gray-400 text-sm">최대 인원</p>' +
+                '</div>';
+        }
+    }
+    
+    // 총 인원 표시
+    const totalMembers = config.teams * config.maxPerTeam;
+    preview.innerHTML += '<div class="col-span-2 mt-4 pt-4 border-t border-gray-700 text-center">' +
+        '<p class="text-gray-400">총 모집 인원: <span class="text-white font-bold">' + totalMembers + '명</span></p>' +
+        '</div>';
+}
+
+// 초기 로드 시 미리보기 업데이트
+updateTeamPreview();
+
+// 파티 타입 변경 시 미리보기 업데이트
+document.getElementById('partyType').addEventListener('change', updateTeamPreview);
+
+// 시작 시간 기본값 설정 (현재 시간 + 1시간)
+const startTimeInput = document.querySelector('input[name="startTime"]');
+const now = new Date();
+now.setHours(now.getHours() + 1);
+startTimeInput.value = now.toISOString().slice(0, 16);
+
+// 폼 제출 처리
+document.getElementById('partyCreateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    
+    // 로딩 표시
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>생성 중...';
+    submitBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/party/api/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // 성공 메시지 표시
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center';
+            alertDiv.innerHTML = '<i class="fas fa-check-circle mr-2"></i>파티가 생성되었습니다!';
+            document.body.appendChild(alertDiv);
+            
+            // 파티 상세 페이지로 이동
+            setTimeout(() => {
+                window.location.href = '/party/' + result.partyId;
+            }, 1000);
+        } else {
+            throw new Error(result.error || '파티 생성에 실패했습니다.');
+        }
+    } catch (error) {
+        // 에러 메시지 표시
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center';
+        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>' + error.message;
+        document.body.appendChild(alertDiv);
+        
+        // 버튼 복원
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+        
+        // 3초 후 알림 제거
+        setTimeout(() => alertDiv.remove(), 3000);
+    }
+});
+</script>

@@ -20,7 +20,7 @@ const CONFIG = {
     CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
     CALLBACK_URL: process.env.CALLBACK_URL || 'http://localhost:3000/auth/discord/callback',
     BOT_INVITE_URL: process.env.BOT_INVITE_URL || '#',
-    ADMIN_IDS: process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [] // 콤마로 구분된 관리자 ID 목록
+    ADMIN_IDS: process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : []
 };
 
 // 설정 확인
@@ -66,10 +66,10 @@ app.use(session({
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
-        maxAge: 30 * 24 * 60 * 60 * 1000, // 30일
+        maxAge: 30 * 24 * 60 * 60 * 1000,
         sameSite: 'lax'
     },
-    name: 'aimdot.sid' // 세션 쿠키 이름
+    name: 'aimdot.sid'
 }));
 
 // Passport 설정
@@ -84,13 +84,11 @@ passport.use(new DiscordStrategy({
     scope: ['identify', 'guilds']
 }, async (accessToken, refreshToken, profile, done) => {
     try {
-        // 프로필 확인
         if (!profile || !profile.id) {
             logger.error('Discord 프로필 정보가 없습니다');
             return done(new Error('프로필 정보를 가져올 수 없습니다'), null);
         }
         
-        // 사용자 정보 저장
         const userData = {
             id: profile.id,
             username: profile.username || 'Unknown',
@@ -124,8 +122,6 @@ passport.deserializeUser(async (id, done) => {
     }
 });
 
-// 인증 미들웨어 (삭제 - permissions.js에서 가져옴)
-
 // 라우트
 // 홈페이지
 app.get('/', (req, res) => {
@@ -157,7 +153,7 @@ app.get('/auth/discord', (req, res, next) => {
     passport.authenticate('discord')(req, res, next);
 });
 
-// Discord OAuth2 인증 (성공 후 리다이렉트)
+// Discord OAuth2 콜백
 app.get('/auth/discord/callback', 
     (req, res, next) => {
         logger.info('🔐 Discord OAuth2 콜백 수신');
@@ -168,17 +164,14 @@ app.get('/auth/discord/callback',
     },
     (req, res) => {
         logger.success('🔐 Discord OAuth2 인증 성공');
-        
-        // 사용자 권한 확인
         const userRole = permissionManager.getUserRole(req.user.id);
         
-        // 권한에 따라 리다이렉트
         if (userRole === ROLES.ADMIN) {
             res.redirect('/dashboard');
         } else if (userRole === ROLES.MEMBER) {
             res.redirect('/servers');
         } else {
-            res.redirect('/'); // 게스트는 홈으로
+            res.redirect('/');
         }
     }
 );
@@ -196,16 +189,47 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// 서버 목록 페이지 (멤버 이상)
+app.get('/servers', requireRole(ROLES.MEMBER), async (req, res) => {
+    try {
+        const botClient = require('../index');
+        
+        const guilds = botClient.guilds.cache.map(guild => ({
+            id: guild.id,
+            name: guild.name,
+            icon: guild.iconURL({ dynamic: true }),
+            memberCount: guild.memberCount,
+            owner: guild.ownerId,
+            createdAt: guild.createdAt,
+            joinedAt: guild.joinedAt
+        }));
+        
+        res.render('servers', { 
+            user: req.user,
+            userRole: req.userRole,
+            guilds: guilds
+        });
+    } catch (error) {
+        logger.error(`서버 목록 페이지 오류: ${error.message}`);
+        res.render('error', { 
+            error: '데이터를 불러오는 중 오류가 발생했습니다.',
+            user: req.user 
+        });
+    }
+});
+
+// 파티 라우트 추가
+const partyRoutes = require('./routes/partyRoutes');
+app.use('/party', partyRoutes);
+
 // 대시보드 (관리자 전용)
 app.get('/dashboard', requireRole(ROLES.ADMIN), async (req, res) => {
     try {
         const stats = await dataManager.getStats();
         const userStats = permissionManager.getStats();
         
-        // 봇 클라이언트 가져오기
         const botClient = require('../index');
         
-        // 서버 정보 가져오기
         const guilds = botClient.guilds.cache.map(guild => ({
             id: guild.id,
             name: guild.name,
@@ -218,8 +242,7 @@ app.get('/dashboard', requireRole(ROLES.ADMIN), async (req, res) => {
             boostCount: guild.premiumSubscriptionCount
         }));
         
-        // 로그 기록 가져오기
-        const logs = logger.getHistory(null, 50); // 최근 50개 로그
+        const logs = logger.getHistory(null, 50);
         
         res.render('dashboard', { 
             user: req.user,
@@ -245,7 +268,7 @@ app.get('/dashboard', requireRole(ROLES.ADMIN), async (req, res) => {
     }
 });
 
-// 관리자 페이지 - 권한 관리
+// 권한 관리 페이지
 app.get('/admin/permissions', requireRole(ROLES.ADMIN), async (req, res) => {
     try {
         const users = await permissionManager.getAllUsers();
@@ -267,8 +290,61 @@ app.get('/admin/permissions', requireRole(ROLES.ADMIN), async (req, res) => {
     }
 });
 
+// 파티 관리 페이지 (관리자 전용)
+app.get('/admin/party', requireRole(ROLES.ADMIN), async (req, res) => {
+    try {
+        const fs = require('fs').promises;
+        const files = await fs.readdir(path.join(process.cwd(), 'data'));
+        const completedParties = [];
+        const battleHistory = [];
+        
+        for (const file of files) {
+            if (file.startsWith('party_') && file.endsWith('.json')) {
+                const party = await dataManager.read(file.replace('.json', ''));
+                if (party) {
+                    const partyConfig = {
+                        mock_battle: { name: '모의전', icon: '❌' },
+                        regular_battle: { name: '정규전', icon: '🔥' },
+                        black_claw: { name: '검은발톱', icon: '⚫' },
+                        pk: { name: 'PK', icon: '⚡' },
+                        raid: { name: '레이드', icon: '👑' },
+                        training: { name: '훈련', icon: '🎯' }
+                    }[party.type];
+                    
+                    party.icon = partyConfig?.icon || '⚔️';
+                    party.typeName = partyConfig?.name || '기타';
+                    
+                    if (party.status === 'recruiting' && new Date(party.startTime) < new Date()) {
+                        completedParties.push(party);
+                    } else if (party.status === 'completed') {
+                        battleHistory.push({
+                            ...party,
+                            memberCount: party.members.length
+                        });
+                    }
+                }
+            }
+        }
+        
+        battleHistory.sort((a, b) => new Date(b.completedAt || b.startTime) - new Date(a.completedAt || a.startTime));
+        
+        res.render('party/admin', {
+            user: req.user,
+            userRole: req.userRole,
+            completedParties: completedParties,
+            battleHistory: battleHistory.slice(0, 20)
+        });
+    } catch (error) {
+        logger.error(`파티 관리 페이지 오류: ${error.message}`);
+        res.render('error', { 
+            error: '데이터를 불러오는 중 오류가 발생했습니다.',
+            user: req.user 
+        });
+    }
+});
+
 // API 라우트
-// 사용자 권한 업데이트 (관리자 전용)
+// 사용자 권한 업데이트
 app.post('/api/admin/permissions/user', requireRole(ROLES.ADMIN), async (req, res) => {
     try {
         const { userId, role } = req.body;
@@ -290,7 +366,7 @@ app.post('/api/admin/permissions/user', requireRole(ROLES.ADMIN), async (req, re
     }
 });
 
-// 페이지 권한 업데이트 (관리자 전용)
+// 페이지 권한 업데이트
 app.post('/api/admin/permissions/page', requireRole(ROLES.ADMIN), async (req, res) => {
     try {
         const { path, role } = req.body;
@@ -312,7 +388,7 @@ app.post('/api/admin/permissions/page', requireRole(ROLES.ADMIN), async (req, re
     }
 });
 
-// 봇 제어 API (관리자 전용)
+// 봇 제어 API
 app.post('/api/bot/control', requireRole(ROLES.ADMIN), async (req, res) => {
     try {
         const { action } = req.body;
@@ -322,7 +398,6 @@ app.post('/api/bot/control', requireRole(ROLES.ADMIN), async (req, res) => {
                 logger.warn(`⚠️ 웹 대시보드에서 봇 종료 요청: ${req.user.username}`);
                 res.json({ success: true, message: '봇을 종료합니다...' });
                 
-                // PM2를 사용하는 경우 graceful shutdown
                 setTimeout(() => {
                     logger.system('🛑 봇 종료 신호 수신');
                     process.kill(process.pid, 'SIGINT');
@@ -333,10 +408,9 @@ app.post('/api/bot/control', requireRole(ROLES.ADMIN), async (req, res) => {
                 logger.warn(`⚠️ 웹 대시보드에서 봇 재시작 요청: ${req.user.username}`);
                 res.json({ success: true, message: '봇을 재시작합니다...' });
                 
-                // PM2가 자동으로 재시작하도록 프로세스 종료
                 setTimeout(() => {
                     logger.system('🔄 봇 재시작 신호 수신');
-                    process.exit(0); // PM2가 감지하고 자동 재시작
+                    process.exit(0);
                 }, 500);
                 break;
                 
@@ -360,22 +434,34 @@ app.get('/api/logs', requireRole(ROLES.ADMIN), (req, res) => {
     }
 });
 
-// 권한 업데이트 (관리자 전용) - 이전 버전 (제거됨)
-
 // 봇 상태 API
 app.get('/api/bot/status', requireAuth, async (req, res) => {
     try {
-        // 여기에 봇 상태 확인 로직 추가
+        const botClient = require('../index');
         const botStatus = {
-            online: true, // 실제로는 봇 클라이언트에서 가져와야 함
-            guilds: 0,
-            users: 0,
+            online: botClient.ws.status === 0,
+            guilds: botClient.guilds.cache.size,
+            users: botClient.users.cache.size,
             uptime: process.uptime()
         };
         
         res.json(botStatus);
     } catch (error) {
         logger.error(`봇 상태 API 오류: ${error.message}`);
+        res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+    }
+});
+
+// 파티 상세 정보 API
+app.get('/party/api/details/:partyId', requireAuth, async (req, res) => {
+    try {
+        const party = await dataManager.read(`party_${req.params.partyId}`);
+        if (!party) {
+            return res.status(404).json({ error: '파티를 찾을 수 없습니다.' });
+        }
+        res.json(party);
+    } catch (error) {
+        logger.error(`파티 상세 정보 오류: ${error.message}`);
         res.status(500).json({ error: '서버 오류가 발생했습니다.' });
     }
 });
@@ -399,7 +485,6 @@ app.use((err, req, res, next) => {
 
 // 서버 시작
 async function startWebServer() {
-    // 권한 시스템 초기화
     await permissionManager.loadPermissions();
     
     const server = app.listen(CONFIG.PORT, () => {
@@ -407,11 +492,9 @@ async function startWebServer() {
         logger.system(`🌐 웹 대시보드가 시작되었습니다!`);
         logger.separator();
         
-        // 네트워크 인터페이스 가져오기
         const networkInterfaces = os.networkInterfaces();
         const addresses = [];
         
-        // 모든 네트워크 인터페이스 확인
         for (const [name, interfaces] of Object.entries(networkInterfaces)) {
             for (const interface of interfaces) {
                 if (interface.family === 'IPv4' && !interface.internal) {
@@ -434,20 +517,17 @@ async function startWebServer() {
         logger.info(`💡 팁: Ctrl+클릭으로 브라우저에서 바로 열 수 있습니다.`);
         logger.separator();
         
-        // 웹 서버 통계 로깅
         let requestCount = 0;
         app.use((req, res, next) => {
             requestCount++;
             next();
         });
         
-        // 1분마다 웹 서버 상태 출력
         setInterval(() => {
             logger.debug(`📊 웹 서버 상태: 요청 수 ${requestCount}회, 가동 시간 ${Math.floor(process.uptime() / 60)}분`);
         }, 60000);
     });
     
-    // 웹 서버 에러 처리
     server.on('error', (error) => {
         if (error.code === 'EADDRINUSE') {
             logger.error(`❌ 포트 ${CONFIG.PORT}이(가) 이미 사용 중입니다.`);

@@ -1,0 +1,48 @@
+<div class="mb-8">
+    <h2 class="text-3xl font-bold mb-2">
+        <i class="fas fa-server mr-2 text-purple-400"></i>서버 목록
+    </h2>
+    <p class="text-gray-400">봇이 참여 중인 서버 목록입니다.</p>
+</div>
+
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <% guilds.forEach(guild => { %>
+        <div class="glass-dark rounded-lg p-6 hover-scale">
+            <div class="flex items-center mb-4">
+                <% if (guild.icon) { %>
+                    <img src="<%= guild.icon %>" alt="<%= guild.name %>" class="w-16 h-16 rounded-full mr-4">
+                <% } else { %>
+                    <div class="w-16 h-16 bg-gray-700 rounded-full mr-4 flex items-center justify-center">
+                        <i class="fas fa-server text-2xl text-gray-400"></i>
+                    </div>
+                <% } %>
+                <div>
+                    <h3 class="text-xl font-semibold"><%= guild.name %></h3>
+                    <p class="text-sm text-gray-400">ID: <%= guild.id %></p>
+                </div>
+            </div>
+            
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="text-gray-400">멤버 수</span>
+                    <span class="font-medium"><%= guild.memberCount.toLocaleString() %>명</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">가입일</span>
+                    <span class="font-medium"><%= new Date(guild.joinedAt).toLocaleDateString('ko-KR') %></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">생성일</span>
+                    <span class="font-medium"><%= new Date(guild.createdAt).toLocaleDateString('ko-KR') %></span>
+                </div>
+            </div>
+        </div>
+    <% }) %>
+</div>
+
+<% if (guilds.length === 0) { %>
+    <div class="glass-dark rounded-lg p-12 text-center">
+        <i class="fas fa-server text-6xl text-gray-600 mb-4"></i>
+        <p class="text-xl text-gray-400">봇이 참여 중인 서버가 없습니다.</p>
+    </div>
+<% } %>

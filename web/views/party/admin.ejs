@@ -1,0 +1,241 @@
+<div class="mb-8">
+    <h2 class="text-3xl font-bold mb-2">
+        <i class="fas fa-cog mr-2 text-red-400"></i>파티 관리
+    </h2>
+    <p class="text-gray-400">진행된 파티의 전투 결과를 입력하고 관리합니다.</p>
+</div>
+
+<!-- 진행 완료된 파티 목록 -->
+<div class="glass-dark rounded-lg p-6">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-flag-checkered mr-2"></i>결과 입력 대기 중인 파티
+    </h3>
+    
+    <% if (completedParties.length === 0) { %>
+        <p class="text-gray-400 text-center py-8">
+            현재 결과 입력이 필요한 파티가 없습니다.
+        </p>
+    <% } else { %>
+        <div class="space-y-4">
+            <% completedParties.forEach(party => { %>
+                <div class="bg-gray-900 rounded-lg p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="text-lg font-medium">
+                            <%= party.icon %> <%= party.title %>
+                        </h4>
+                        <span class="text-sm text-gray-400">
+                            <%= new Date(party.startTime).toLocaleString('ko-KR') %>
+                        </span>
+                    </div>
+                    
+                    <p class="text-sm text-gray-400 mb-3">
+                        참가자: <%= party.members.length %>명
+                    </p>
+                    
+                    <button onclick="showResultForm('<%= party.id %>')" 
+                            class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-edit mr-2"></i>결과 입력
+                    </button>
+                </div>
+            <% }) %>
+        </div>
+    <% } %>
+</div>
+
+<!-- 결과 입력 모달 -->
+<div id="resultModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-gray-800 rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <h3 class="text-2xl font-bold mb-4">전투 결과 입력</h3>
+        
+        <form id="resultForm">
+            <input type="hidden" id="partyId" name="partyId">
+            
+            <div id="memberResults" class="space-y-4">
+                <!-- JavaScript로 동적 생성 -->
+            </div>
+            
+            <div class="mt-6 flex justify-end space-x-4">
+                <button type="button" onclick="closeResultForm()" 
+                        class="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
+                    취소
+                </button>
+                <button type="submit" 
+                        class="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg transition">
+                    <i class="fas fa-save mr-2"></i>저장
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 전투 기록 -->
+<div class="glass-dark rounded-lg p-6 mt-6">
+    <h3 class="text-xl font-semibold mb-4">
+        <i class="fas fa-history mr-2"></i>최근 전투 기록
+    </h3>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="border-b border-gray-700">
+                <tr>
+                    <th class="text-left py-3 px-4">파티명</th>
+                    <th class="text-left py-3 px-4">타입</th>
+                    <th class="text-left py-3 px-4">참가자</th>
+                    <th class="text-left py-3 px-4">날짜</th>
+                    <th class="text-left py-3 px-4">승리팀</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800">
+                <% battleHistory.forEach(battle => { %>
+                    <tr class="hover:bg-gray-900 transition">
+                        <td class="py-3 px-4"><%= battle.title %></td>
+                        <td class="py-3 px-4">
+                            <span class="text-sm bg-gray-800 px-2 py-1 rounded">
+                                <%= battle.typeName %>
+                            </span>
+                        </td>
+                        <td class="py-3 px-4"><%= battle.memberCount %>명</td>
+                        <td class="py-3 px-4 text-sm text-gray-400">
+                            <%= new Date(battle.completedAt).toLocaleDateString('ko-KR') %>
+                        </td>
+                        <td class="py-3 px-4">
+                            <% if (battle.winnerTeam) { %>
+                                <span class="text-green-400">
+                                    <%= battle.winnerTeam %>팀
+                                </span>
+                            <% } else { %>
+                                <span class="text-gray-400">-</span>
+                            <% } %>
+                        </td>
+                    </tr>
+                <% }) %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let currentPartyData = null;
+
+// 결과 입력 폼 표시
+async function showResultForm(partyId) {
+    try {
+        const response = await fetch(`/party/api/details/${partyId}`);
+        const party = await response.json();
+        
+        currentPartyData = party;
+        document.getElementById('partyId').value = partyId;
+        
+        // 멤버별 입력 폼 생성
+        const memberResults = document.getElementById('memberResults');
+        memberResults.innerHTML = '';
+        
+        // 팀별로 구분
+        const teams = {};
+        party.members.forEach(member => {
+            if (!teams[member.team]) teams[member.team] = [];
+            teams[member.team].push(member);
+        });
+        
+        // 팀별 입력 폼 생성
+        Object.entries(teams).forEach(([teamNum, teamMembers]) => {
+            const teamDiv = document.createElement('div');
+            teamDiv.className = 'bg-gray-900 rounded-lg p-4 mb-4';
+            teamDiv.innerHTML = `
+                <h4 class="text-lg font-semibold mb-3">
+                    ${Object.keys(teams).length > 1 ? teamNum + '팀' : '참가자'}
+                </h4>
+                <div class="space-y-3">
+                    ${teamMembers.map(member => `
+                        <div class="grid grid-cols-3 gap-4 items-center">
+                            <div>
+                                <p class="font-medium">${member.username}</p>
+                                <p class="text-sm text-gray-400">${member.selectedClass}</p>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-400">킬 수</label>
+                                <input type="number" 
+                                       name="kills_${member.userId}" 
+                                       min="0" 
+                                       value="0"
+                                       class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1">
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-400">결과</label>
+                                <select name="result_${member.userId}" 
+                                        class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1">
+                                    <option value="win">승리</option>
+                                    <option value="lose">패배</option>
+                                </select>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            memberResults.appendChild(teamDiv);
+        });
+        
+        // 모달 표시
+        document.getElementById('resultModal').classList.remove('hidden');
+    } catch (error) {
+        showAlert('error', '파티 정보를 불러올 수 없습니다.');
+    }
+}
+
+// 결과 입력 폼 닫기
+function closeResultForm() {
+    document.getElementById('resultModal').classList.add('hidden');
+    currentPartyData = null;
+}
+
+// 결과 제출
+document.getElementById('resultForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const results = [];
+    
+    // 각 멤버의 결과 수집
+    currentPartyData.members.forEach(member => {
+        results.push({
+            userId: member.userId,
+            username: member.username,
+            kills: parseInt(formData.get(`kills_${member.userId}`) || 0),
+            win: formData.get(`result_${member.userId}`) === 'win'
+        });
+    });
+    
+    try {
+        const response = await fetch(`/party/api/result/${currentPartyData.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(results)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('success', '전투 결과가 저장되었습니다.');
+            closeResultForm();
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            throw new Error(result.error || '저장에 실패했습니다.');
+        }
+    } catch (error) {
+        showAlert('error', error.message);
+    }
+});
+
+// 알림 표시
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-600' : 'bg-red-600';
+    const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
+    
+    alertDiv.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center`;
+    alertDiv.innerHTML = `<i class="fas ${icon} mr-2"></i>${message}`;
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => alertDiv.remove(), 3000);
+}
+</script>
