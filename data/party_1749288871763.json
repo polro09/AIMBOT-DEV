@@ -1,0 +1,34 @@
+{
+  "id": "1749288871763",
+  "type": "mock_battle",
+  "title": "55",
+  "description": "테스트",
+  "startTime": "2025-06-07T10:34",
+  "requirements": "테스트",
+  "minScore": 0,
+  "maxMembers": 10,
+  "createdBy": "257097077782216704",
+  "createdByName": "ad_origina1",
+  "createdAt": "2025-06-07T09:34:31.763Z",
+  "members": [
+    {
+      "userId": "257097077782216704",
+      "username": "ad_origina1",
+      "selectedClass": "[object Object]",
+      "selectedNation": "나폴리",
+      "team": 0,
+      "joinedAt": "2025-06-07T09:35:10.006Z",
+      "stats": {
+        "points": 0,
+        "winRate": 0,
+        "avgKills": 0,
+        "totalGames": 0,
+        "wins": 0,
+        "losses": 0,
+        "totalKills": 0
+      }
+    }
+  ],
+  "status": "cancelled",
+  "cancelledAt": "2025-06-07T10:01:06.740Z"
+}

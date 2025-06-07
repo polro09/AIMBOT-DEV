@@ -2,12 +2,18 @@ module.exports = {
   apps: [{
     name: 'aimdot-bot',
     script: './index.js',
-    watch: false, // --watch 옵션 대신 여기서 설정
-    ignore_watch: ['node_modules', 'logs', 'data', '.git'],
+    watch: false,
+    ignore_watch: ['node_modules', 'logs', 'data', '.git', 'data/sessions'],
     max_restarts: 10,
     min_uptime: '10s',
     env: {
-      NODE_ENV: 'development'
+      NODE_ENV: 'development',
+      SESSION_SECRET: process.env.SESSION_SECRET
+    },
+    env_production: {
+      NODE_ENV: 'production',
+      SESSION_SECRET: process.env.SESSION_SECRET,
+      COOKIE_SECURE: 'true'
     },
     error_file: './logs/pm2-error.log',
     out_file: './logs/pm2-out.log',
@@ -17,6 +23,8 @@ module.exports = {
     kill_timeout: 3000,
     // 재시작 지연
     restart_delay: 4000,
-    autorestart: true
+    autorestart: true,
+    // 메모리 제한 (선택사항)
+    max_memory_restart: '1G'
   }]
 }

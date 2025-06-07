@@ -3,22 +3,26 @@ const router = express.Router();
 const dataManager = require('../../utils/dataManager');
 const logger = require('../../utils/logger');
 const { permissionManager } = require('../utils/permissions');
+const PARTY_CONFIG = require('./partyConfig');
 
-// 파티 설정
-const PARTY_CONFIG = {
-    TYPES: {
-        mock_battle: { name: '모의전', icon: '❌', teams: 2, maxPerTeam: 5 },
-        regular_battle: { name: '정규전', icon: '🔥', teams: 2, maxPerTeam: 5 },
-        black_claw: { name: '검은발톱', icon: '⚫', teams: 1, maxPerTeam: 5 },
-        pk: { name: 'PK', icon: '⚡', teams: 1, maxPerTeam: 5 },
-        raid: { name: '레이드', icon: '👑', teams: 1, maxPerTeam: 5 },
-        training: { name: '훈련', icon: '🎯', teams: 2, maxPerTeam: 5 }
-    },
-    CLASSES: {
-        일반: ['방패보병', '폴암보병', '궁기병', '궁수', '창기병'],
-        귀족: ['궁기병', '궁수', '창기병']
+// 파티 목록 페이지
+router.get('/', async (req, res) => {
+    try {
+        const parties = await getActiveParties();
+        const userStats = await getUserStats(req.user.id);
+        
+        res.render('party/list', {
+            parties: parties,
+            userStats: userStats,
+            partyTypes: PARTY_CONFIG.TYPES
+        });
+    } catch (error) {
+        logger.error(`파티 목록 페이지 오류: ${error.message}`);
+        res.render('error', { 
+            error: '파티 목록을 불러올 수 없습니다.'
+        });
     }
-};
+});
 
 // 파티 생성 페이지
 router.get('/create', (req, res) => {
@@ -27,7 +31,8 @@ router.get('/create', (req, res) => {
     res.render('party/create', {
         partyType: partyType,
         partyTypes: PARTY_CONFIG.TYPES,
-        classes: PARTY_CONFIG.CLASSES
+        classes: PARTY_CONFIG.CLASSES,
+        nations: PARTY_CONFIG.NATIONS
     });
 });
 
@@ -47,43 +52,43 @@ router.get('/:partyId', async (req, res) => {
         
         // 팀별 멤버 정리
         const teams = {};
+        const waitingRoom = [];
         const partyConfig = PARTY_CONFIG.TYPES[party.type];
         
+        // 팀 초기화
         for (let i = 1; i <= partyConfig.teams; i++) {
-            teams[i] = party.members.filter(m => m.team === i);
+            teams[i] = [];
         }
+        
+        // 멤버 분류 (팀 배정된 멤버 vs 대기실)
+        party.members.forEach(member => {
+            if (member.team && member.team > 0) {
+                teams[member.team].push(member);
+            } else {
+                waitingRoom.push(member);
+            }
+        });
+        
+        // 병과 정보 추가
+        const allClasses = [...PARTY_CONFIG.CLASSES.일반, ...PARTY_CONFIG.CLASSES.귀족];
         
         res.render('party/detail', {
             party: party,
             teams: teams,
+            waitingRoom: waitingRoom,
             userStats: userStats,
             partyConfig: partyConfig,
             classes: PARTY_CONFIG.CLASSES,
-            isJoined: party.members.some(m => m.userId === req.user.id)
+            nations: PARTY_CONFIG.NATIONS,
+            allClasses: allClasses,
+            isJoined: party.members.some(m => m.userId === req.user.id),
+            isCreator: party.createdBy === req.user.id,
+            PARTY_CONFIG: PARTY_CONFIG // 뷰에서 사용할 수 있도록 전달
         });
     } catch (error) {
         logger.error(`파티 상세 페이지 오류: ${error.message}`);
         res.render('error', { 
             error: '파티 정보를 불러올 수 없습니다.'
-        });
-    }
-});
-
-// 파티 목록 페이지
-router.get('/', async (req, res) => {
-    try {
-        const parties = await getActiveParties();
-        const userStats = await getUserStats(req.user.id);
-        
-        res.render('party/list', {
-            parties: parties,
-            userStats: userStats,
-            partyTypes: PARTY_CONFIG.TYPES
-        });
-    } catch (error) {
-        logger.error(`파티 목록 페이지 오류: ${error.message}`);
-        res.render('error', { 
-            error: '파티 목록을 불러올 수 없습니다.'
         });
     }
 });
@@ -116,6 +121,7 @@ router.post('/api/create', async (req, res) => {
             minScore: parseInt(minScore) || 0,
             maxMembers: partyConfig.teams * partyConfig.maxPerTeam,
             createdBy: req.user.id,
+            createdByName: req.user.username,
             createdAt: new Date().toISOString(),
             members: [],
             status: 'recruiting'
@@ -124,7 +130,7 @@ router.post('/api/create', async (req, res) => {
         await dataManager.write(`party_${partyId}`, party);
         
         // Discord 봇에 알림 전송
-        await notifyDiscord(party);
+        await notifyDiscord(party, false);
         
         logger.success(`파티 생성: ${title} by ${req.user.username}`);
         res.json({ success: true, partyId: partyId });
@@ -134,10 +140,10 @@ router.post('/api/create', async (req, res) => {
     }
 });
 
-// 파티 참여 API
+// 파티 참여 API (대기실로 우선 참여)
 router.post('/api/join/:partyId', async (req, res) => {
     try {
-        const { selectedClass, team } = req.body;
+        const { selectedClass, selectedNation } = req.body;
         const partyId = req.params.partyId;
         
         const party = await dataManager.read(`party_${partyId}`);
@@ -159,29 +165,75 @@ router.post('/api/join/:partyId', async (req, res) => {
             });
         }
         
-        // 팀 인원 확인
-        const partyConfig = PARTY_CONFIG.TYPES[party.type];
-        const teamMembers = party.members.filter(m => m.team === parseInt(team));
-        if (teamMembers.length >= partyConfig.maxPerTeam) {
-            return res.status(400).json({ success: false, error: '해당 팀이 가득 찼습니다.' });
-        }
+        // 병과와 국가 정보 가져오기
+        const allClasses = [...PARTY_CONFIG.CLASSES.일반, ...PARTY_CONFIG.CLASSES.귀족];
+        const selectedClassInfo = allClasses.find(c => c.id === selectedClass);
+        const selectedNationInfo = PARTY_CONFIG.NATIONS.find(n => n.id === selectedNation);
         
-        // 멤버 추가
+        // 대기실로 추가 (팀 번호는 0 또는 null)
         party.members.push({
             userId: req.user.id,
             username: req.user.username,
             selectedClass: selectedClass,
-            team: parseInt(team),
+            selectedClassInfo: selectedClassInfo,
+            selectedNation: selectedNation,
+            selectedNationInfo: selectedNationInfo,
+            team: 0, // 대기실
             joinedAt: new Date().toISOString(),
             stats: userStats
         });
         
         await dataManager.write(`party_${partyId}`, party);
         
-        logger.info(`파티 참여: ${req.user.username} -> ${party.title}`);
+        // Discord 알림 업데이트
+        await notifyDiscord(party, true);
+        
+        logger.info(`파티 참여 (대기실): ${req.user.username} -> ${party.title}`);
         res.json({ success: true });
     } catch (error) {
         logger.error(`파티 참여 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 팀 이동 API (대기실 <-> 팀)
+router.post('/api/move/:partyId', async (req, res) => {
+    try {
+        const { team } = req.body;
+        const partyId = req.params.partyId;
+        
+        const party = await dataManager.read(`party_${partyId}`);
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        const memberIndex = party.members.findIndex(m => m.userId === req.user.id);
+        if (memberIndex === -1) {
+            return res.status(400).json({ success: false, error: '파티에 참여하지 않았습니다.' });
+        }
+        
+        // 팀 이동
+        const targetTeam = parseInt(team);
+        
+        if (targetTeam > 0) {
+            // 팀으로 이동하는 경우 인원 확인
+            const partyConfig = PARTY_CONFIG.TYPES[party.type];
+            const teamMembers = party.members.filter(m => m.team === targetTeam);
+            if (teamMembers.length >= partyConfig.maxPerTeam) {
+                return res.status(400).json({ success: false, error: '해당 팀이 가득 찼습니다.' });
+            }
+        }
+        
+        party.members[memberIndex].team = targetTeam;
+        await dataManager.write(`party_${partyId}`, party);
+        
+        // Discord 알림 업데이트
+        await notifyDiscord(party, true);
+        
+        logger.info(`팀 이동: ${req.user.username} -> 팀 ${targetTeam}`);
+        res.json({ success: true });
+    } catch (error) {
+        logger.error(`팀 이동 오류: ${error.message}`);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -199,10 +251,43 @@ router.post('/api/leave/:partyId', async (req, res) => {
         party.members = party.members.filter(m => m.userId !== req.user.id);
         await dataManager.write(`party_${partyId}`, party);
         
+        // Discord 알림 업데이트
+        await notifyDiscord(party, true);
+        
         logger.info(`파티 나가기: ${req.user.username} <- ${party.title}`);
         res.json({ success: true });
     } catch (error) {
         logger.error(`파티 나가기 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 파티 취소 API (개최자만)
+router.post('/api/cancel/:partyId', async (req, res) => {
+    try {
+        const partyId = req.params.partyId;
+        
+        const party = await dataManager.read(`party_${partyId}`);
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        // 개최자 확인
+        if (party.createdBy !== req.user.id) {
+            return res.status(403).json({ success: false, error: '파티 개최자만 취소할 수 있습니다.' });
+        }
+        
+        party.status = 'cancelled';
+        party.cancelledAt = new Date().toISOString();
+        await dataManager.write(`party_${partyId}`, party);
+        
+        // Discord 알림에서 취소 표시
+        await notifyDiscordCancelled(party);
+        
+        logger.warn(`파티 취소: ${party.title} by ${req.user.username}`);
+        res.json({ success: true });
+    } catch (error) {
+        logger.error(`파티 취소 오류: ${error.message}`);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -310,68 +395,29 @@ async function getActiveParties() {
     return parties.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-async function notifyDiscord(party) {
+// Discord 알림 전송 함수
+async function notifyDiscord(party, isUpdate = false) {
     try {
-        // Discord 봇에 알림 전송
-        const botClient = require('../../index');
-        const partyConfig = PARTY_CONFIG.TYPES[party.type];
-        
-        // 파티 알림 채널 ID는 환경변수에서 가져옴
-        const channelId = process.env.PARTY_NOTICE_CHANNEL_ID;
-        if (!channelId) return;
-        
-        const channel = botClient.channels.cache.get(channelId);
-        if (!channel) return;
-        
-        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-        
-        const embed = new EmbedBuilder()
-            .setAuthor({
-                name: 'Aimbot.DEV',
-                iconURL: 'https://imgur.com/Sd8qK9c.gif'
-            })
-            .setTitle(`${partyConfig.icon} 새로운 ${partyConfig.name} 파티 모집!`)
-            .setDescription(`**${party.title}**\n\n${party.description}`)
-            .setColor(0xFF0000)
-            .addFields([
-                {
-                    name: '📅 시작 시간',
-                    value: party.startTime,
-                    inline: true
-                },
-                {
-                    name: '👥 모집 인원',
-                    value: `0/${party.maxMembers}명`,
-                    inline: true
-                },
-                {
-                    name: '🎯 참가 조건',
-                    value: party.requirements || '제한 없음',
-                    inline: true
-                }
-            ])
-            .setThumbnail('https://i.imgur.com/6G5xYJJ.png')
-            .setFooter({
-                text: '🔺DEUS VULT',
-                iconURL: channel.guild.iconURL({ dynamic: true })
-            })
-            .setTimestamp();
-        
-        const button = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setLabel('파티 참여하기')
-                    .setStyle(ButtonStyle.Link)
-                    .setURL(`${process.env.WEB_URL || 'http://localhost:3000'}/party/${party.id}`)
-                    .setEmoji('🔗')
-            );
-        
-        await channel.send({
-            embeds: [embed],
-            components: [button]
+        // 봇 클라이언트를 통해 알림 전송
+        const response = await fetch(`http://localhost:${process.env.WEB_PORT || 3000}/api/party/update/${party.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
-        logger.error(`Discord 알림 전송 오류: ${error.message}`);
+        logger.error(`Discord 알림 전송 실패: ${error.message}`);
+    }
+}
+
+// Discord 취소 알림
+async function notifyDiscordCancelled(party) {
+    try {
+        // 취소 알림 전송
+        const response = await fetch(`http://localhost:${process.env.WEB_PORT || 3000}/api/party/cancelled/${party.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        logger.error(`Discord 취소 알림 전송 실패: ${error.message}`);
     }
 }
 

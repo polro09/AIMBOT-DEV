@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const MemoryStore = require('memorystore')(session);
 const passport = require('passport');
 const DiscordStrategy = require('passport-discord').Strategy;
 const path = require('path');
@@ -58,11 +59,14 @@ app.use((req, res, next) => {
     next();
 });
 
-// 세션 설정
+// 세션 설정 - 메모리 스토어 사용 (파일 권한 문제 해결)
 app.use(session({
+    store: new MemoryStore({
+        checkPeriod: 86400000 // 24시간마다 만료된 세션 정리
+    }),
     secret: CONFIG.SESSION_SECRET,
     resave: false,
-    saveUninitialized: true, // true로 변경하여 returnTo를 저장할 수 있도록 함
+    saveUninitialized: true,
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
@@ -212,7 +216,6 @@ app.get('/logout', (req, res) => {
 
 // 파티 라우트 추가 (멤버 이상 접근 가능)
 const partyRoutes = require('./routes/partyRoutes');
-// requireRole을 각 라우트가 아닌 파티 라우트 내부에서 처리하도록 변경
 app.use('/party', (req, res, next) => {
     // 인증 확인
     if (!req.isAuthenticated()) {
@@ -370,6 +373,129 @@ app.get('/admin/party', requireRole(ROLES.ADMIN), async (req, res) => {
 });
 
 // API 라우트
+// 파티 업데이트 알림 API (Discord 봇용)
+app.post('/api/party/update/:partyId', async (req, res) => {
+    try {
+        const partyId = req.params.partyId;
+        const party = await dataManager.read(`party_${partyId}`);
+        
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        // Discord 봇에 알림 전송
+        const botClient = require('../index');
+        const channelId = process.env.PARTY_NOTICE_CHANNEL_ID;
+        
+        if (channelId) {
+            const channel = botClient.channels.cache.get(channelId);
+            if (channel) {
+                const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+                
+                const partyConfig = {
+                    mock_battle: { name: '모의전', icon: '❌' },
+                    regular_battle: { name: '정규전', icon: '🔥' },
+                    black_claw: { name: '검은발톱', icon: '⚫' },
+                    pk: { name: 'PK', icon: '⚡' },
+                    raid: { name: '레이드', icon: '👑' },
+                    training: { name: '훈련', icon: '🎯' }
+                }[party.type];
+                
+                // 팀별 멤버 정리
+                const teams = {};
+                const waitingRoom = [];
+                
+                party.members.forEach(member => {
+                    if (member.team && member.team > 0) {
+                        if (!teams[member.team]) teams[member.team] = [];
+                        teams[member.team].push(member);
+                    } else {
+                        waitingRoom.push(member);
+                    }
+                });
+                
+                // 팀 구성 텍스트
+                let teamText = '';
+                if (Object.keys(teams).length > 0) {
+                    for (const [teamNum, members] of Object.entries(teams)) {
+                        teamText += `**${teamNum}팀**: ${members.map(m => m.username).join(', ') || '없음'}\n`;
+                    }
+                }
+                
+                if (waitingRoom.length > 0) {
+                    teamText += `**대기실**: ${waitingRoom.map(m => m.username).join(', ')}\n`;
+                }
+                
+                const embed = new EmbedBuilder()
+                    .setAuthor({
+                        name: 'Aimbot.DEV',
+                        iconURL: 'https://imgur.com/Sd8qK9c.gif'
+                    })
+                    .setTitle(`${partyConfig.icon} ${party.title}`)
+                    .setDescription(`**${party.description}**\n\n${teamText || '참가자가 없습니다.'}`)
+                    .setColor(0xFF0000)
+                    .addFields([
+                        {
+                            name: '📅 시작 시간',
+                            value: new Date(party.startTime).toLocaleString('ko-KR'),
+                            inline: true
+                        },
+                        {
+                            name: '👥 모집 인원',
+                            value: `${party.members.length}/${party.maxMembers}명`,
+                            inline: true
+                        },
+                        {
+                            name: '🎯 참가 조건',
+                            value: party.requirements || '제한 없음',
+                            inline: true
+                        }
+                    ])
+                    .setThumbnail('https://i.imgur.com/6G5xYJJ.png')
+                    .setFooter({
+                        text: '🔺DEUS VULT',
+                        iconURL: channel.guild.iconURL({ dynamic: true })
+                    })
+                    .setTimestamp();
+                
+                const button = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setLabel('파티 참여하기')
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(`${process.env.WEB_URL || 'http://localhost:3000'}/party/${party.id}`)
+                            .setEmoji('🔗')
+                    );
+                
+                // 기존 메시지 찾아서 업데이트 또는 새로 생성
+                const messages = await channel.messages.fetch({ limit: 20 });
+                const existingMessage = messages.find(m => 
+                    m.author.id === botClient.user.id && 
+                    m.embeds.length > 0 && 
+                    m.embeds[0].title?.includes(party.title)
+                );
+                
+                if (existingMessage) {
+                    await existingMessage.edit({
+                        embeds: [embed],
+                        components: [button]
+                    });
+                } else {
+                    await channel.send({
+                        embeds: [embed],
+                        components: [button]
+                    });
+                }
+            }
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        logger.error(`파티 업데이트 알림 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 사용자 권한 업데이트
 app.post('/api/admin/permissions/user', requireRole(ROLES.ADMIN), async (req, res) => {
     try {
@@ -499,9 +625,15 @@ app.use((req, res) => {
     });
 });
 
-// 에러 처리
+// 에러 처리 - 중복 응답 방지
 app.use((err, req, res, next) => {
     logger.error(`서버 오류: ${err.stack || err.message || err}`);
+    
+    // 이미 응답이 전송된 경우 무시
+    if (res.headersSent) {
+        return next(err);
+    }
+    
     res.status(500).render('error', { 
         error: '서버 오류가 발생했습니다.'
     });

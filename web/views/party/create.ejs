@@ -80,6 +80,39 @@
             </div>
         </div>
         
+        <!-- 병과 및 국가 정보 -->
+        <div class="mt-6 p-4 bg-gray-900 rounded-lg">
+            <h3 class="text-lg font-semibold mb-3">
+                <i class="fas fa-shield-alt mr-2"></i>병과 및 국가 정보
+            </h3>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-medium mb-2 text-yellow-400">병과 목록</h4>
+                    <div class="space-y-2 text-sm">
+                        <div>
+                            <p class="font-medium text-gray-300">일반 병과</p>
+                            <p class="text-gray-500">방패보병, 폴암보병, 궁수, 석궁병, 창기병, 궁기병</p>
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-300">귀족 병과</p>
+                            <p class="text-gray-500">귀족 궁수, 귀족 창기병, 귀족 궁기병</p>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <h4 class="font-medium mb-2 text-yellow-400">국가 목록</h4>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <% nations.forEach(nation => { %>
+                            <div class="flex items-center space-x-2">
+                                <img src="<%= nation.icon %>" alt="<%= nation.name %>" class="w-6 h-6 rounded">
+                                <span class="text-gray-400"><%= nation.name %></span>
+                            </div>
+                        <% }) %>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- 버튼 -->
         <div class="mt-6 flex justify-end space-x-4">
             <a href="/party" class="px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition">
@@ -123,6 +156,7 @@ function updateTeamPreview() {
     const totalMembers = config.teams * config.maxPerTeam;
     preview.innerHTML += '<div class="col-span-2 mt-4 pt-4 border-t border-gray-700 text-center">' +
         '<p class="text-gray-400">총 모집 인원: <span class="text-white font-bold">' + totalMembers + '명</span></p>' +
+        '<p class="text-sm text-gray-500 mt-2">참가자는 먼저 대기실로 입장 후 팀 배정됩니다</p>' +
         '</div>';
 }
 
