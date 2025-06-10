@@ -1,0 +1,44 @@
+{
+  "id": "1749290853427",
+  "type": "mock_battle",
+  "title": "1",
+  "description": "1",
+  "startTime": "2025-06-07T11:07",
+  "requirements": "1",
+  "minScore": 0,
+  "maxMembers": 10,
+  "createdBy": "257097077782216704",
+  "createdByName": "ad_origina1",
+  "createdAt": "2025-06-07T10:07:33.427Z",
+  "members": [
+    {
+      "userId": "257097077782216704",
+      "username": "ad_origina1",
+      "selectedClass": "shield_infantry",
+      "selectedClassInfo": {
+        "id": "shield_infantry",
+        "name": "방패보병",
+        "icon": "🛡️"
+      },
+      "selectedNation": "vlandian",
+      "selectedNationInfo": {
+        "id": "vlandian",
+        "name": "블란디아",
+        "icon": "https://static.wikia.nocookie.net/mountandblade/images/c/c4/Vlandia.jpg/revision/latest?cb=20191125150828"
+      },
+      "team": 0,
+      "joinedAt": "2025-06-07T10:07:42.451Z",
+      "stats": {
+        "points": 0,
+        "winRate": 0,
+        "avgKills": 0,
+        "totalGames": 0,
+        "wins": 0,
+        "losses": 0,
+        "totalKills": 0
+      }
+    }
+  ],
+  "status": "cancelled",
+  "cancelledAt": "2025-06-07T10:16:36.500Z"
+}

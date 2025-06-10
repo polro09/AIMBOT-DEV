@@ -3,7 +3,16 @@ module.exports = {
     name: 'aimdot-bot',
     script: './index.js',
     watch: false,
-    ignore_watch: ['node_modules', 'logs', 'data', '.git', 'data/sessions'],
+    ignore_watch: [
+      'node_modules', 
+      'logs', 
+      'data', 
+      '.git', 
+      'data/sessions',
+      'sessions',        // 세션 폴더 추가
+      '*.log',           // 로그 파일
+      '.env'             // 환경변수 파일
+    ],
     max_restarts: 10,
     min_uptime: '10s',
     env: {

@@ -1,0 +1,44 @@
+{
+  "id": "1749349997184",
+  "type": "regular_battle",
+  "title": "1",
+  "description": "1",
+  "startTime": "2025-06-08T03:33",
+  "requirements": "1",
+  "minScore": 0,
+  "maxMembers": 10,
+  "createdBy": "257097077782216704",
+  "createdByName": "ad_origina1",
+  "createdAt": "2025-06-08T02:33:17.185Z",
+  "members": [
+    {
+      "userId": "257097077782216704",
+      "username": "ad_origina1",
+      "selectedClass": "noble_archer",
+      "selectedClassInfo": {
+        "id": "noble_archer",
+        "name": "귀족 궁수",
+        "icon": "👑🏹"
+      },
+      "selectedNation": "battanian",
+      "selectedNationInfo": {
+        "id": "battanian",
+        "name": "바타니아",
+        "icon": "https://static.wikia.nocookie.net/mountandblade/images/e/e8/Battania.jpg/revision/latest?cb=20200409234144"
+      },
+      "team": 0,
+      "joinedAt": "2025-06-08T02:33:27.281Z",
+      "stats": {
+        "points": 0,
+        "winRate": 0,
+        "avgKills": 0,
+        "totalGames": 0,
+        "wins": 0,
+        "losses": 0,
+        "totalKills": 0
+      }
+    }
+  ],
+  "status": "cancelled",
+  "cancelledAt": "2025-06-08T10:50:18.570Z"
+}

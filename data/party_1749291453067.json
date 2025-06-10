@@ -1,0 +1,44 @@
+{
+  "id": "1749291453067",
+  "type": "mock_battle",
+  "title": "1",
+  "description": "1",
+  "startTime": "2025-06-07T11:17",
+  "requirements": "1",
+  "minScore": 0,
+  "maxMembers": 10,
+  "createdBy": "257097077782216704",
+  "createdByName": "ad_origina1",
+  "createdAt": "2025-06-07T10:17:33.067Z",
+  "members": [
+    {
+      "userId": "257097077782216704",
+      "username": "ad_origina1",
+      "selectedClass": "polearm_infantry",
+      "selectedClassInfo": {
+        "id": "polearm_infantry",
+        "name": "폴암보병",
+        "icon": "🗡️"
+      },
+      "selectedNation": "battanian",
+      "selectedNationInfo": {
+        "id": "battanian",
+        "name": "바타니아",
+        "icon": "https://static.wikia.nocookie.net/mountandblade/images/e/e8/Battania.jpg/revision/latest?cb=20200409234144"
+      },
+      "team": 1,
+      "joinedAt": "2025-06-07T10:17:44.051Z",
+      "stats": {
+        "points": 0,
+        "winRate": 0,
+        "avgKills": 0,
+        "totalGames": 0,
+        "wins": 0,
+        "losses": 0,
+        "totalKills": 0
+      }
+    }
+  ],
+  "status": "cancelled",
+  "cancelledAt": "2025-06-08T02:33:06.768Z"
+}

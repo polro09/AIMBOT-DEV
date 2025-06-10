@@ -214,6 +214,101 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// API 라우트
+
+// 파티 알림 API 추가
+app.post('/api/party/update/:partyId', async (req, res) => {
+    try {
+        const partyId = req.params.partyId;
+        const party = await dataManager.read(`party_${partyId}`);
+        
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        // Discord 봇 클라이언트 가져오기
+        const botClient = require('../index');
+        
+        // 파티 모듈 찾기
+        const partyModule = botClient.modules.get('party');
+        if (partyModule) {
+            await partyModule.sendOrUpdatePartyNotice(party, botClient, true);
+            logger.info(`파티 알림 업데이트: ${party.title}`);
+        } else {
+            logger.error('파티 모듈을 찾을 수 없습니다.');
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        logger.error(`파티 알림 API 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 파티 생성 알림 API
+app.post('/api/party/created/:partyId', async (req, res) => {
+    try {
+        const partyId = req.params.partyId;
+        const party = await dataManager.read(`party_${partyId}`);
+        
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        // Discord 봇 클라이언트 가져오기
+        const botClient = require('../index');
+        
+        // 파티 모듈 찾기
+        const partyModule = botClient.modules.get('party');
+        if (partyModule) {
+            await partyModule.sendOrUpdatePartyNotice(party, botClient, false);
+            logger.info(`새 파티 알림 전송: ${party.title}`);
+        } else {
+            logger.error('파티 모듈을 찾을 수 없습니다.');
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        logger.error(`파티 생성 알림 API 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 파티 취소 알림 API
+app.post('/api/party/cancelled/:partyId', async (req, res) => {
+    try {
+        const partyId = req.params.partyId;
+        const party = await dataManager.read(`party_${partyId}`);
+        
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        // Discord 봇 클라이언트 가져오기
+        const botClient = require('../index');
+        const channelId = process.env.PARTY_NOTICE_CHANNEL_ID || '1376106637177126922';
+        const channel = botClient.channels.cache.get(channelId);
+        
+        if (channel && party.embedMessageId) {
+            try {
+                const message = await channel.messages.fetch(party.embedMessageId);
+                await message.edit({
+                    content: '**[취소됨]** ~~이 파티는 취소되었습니다.~~',
+                    embeds: message.embeds,
+                    components: []
+                });
+            } catch (error) {
+                logger.error(`파티 취소 메시지 수정 실패: ${error.message}`);
+            }
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        logger.error(`파티 취소 알림 API 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 파티 라우트 추가 (멤버 이상 접근 가능)
 const partyRoutes = require('./routes/partyRoutes');
 app.use('/party', (req, res, next) => {
@@ -335,7 +430,7 @@ app.get('/admin/party', requireRole(ROLES.ADMIN), async (req, res) => {
                 const party = await dataManager.read(file.replace('.json', ''));
                 if (party) {
                     const partyConfig = {
-                        mock_battle: { name: '모의전', icon: '❌' },
+                        mock_battle: { name: '모의전', icon: '⚔️' },
                         regular_battle: { name: '정규전', icon: '🔥' },
                         black_claw: { name: '검은발톱', icon: '⚫' },
                         pk: { name: 'PK', icon: '⚡' },
@@ -369,130 +464,6 @@ app.get('/admin/party', requireRole(ROLES.ADMIN), async (req, res) => {
         res.render('error', { 
             error: '데이터를 불러오는 중 오류가 발생했습니다.'
         });
-    }
-});
-
-// API 라우트
-// 파티 업데이트 알림 API (Discord 봇용)
-app.post('/api/party/update/:partyId', async (req, res) => {
-    try {
-        const partyId = req.params.partyId;
-        const party = await dataManager.read(`party_${partyId}`);
-        
-        if (!party) {
-            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
-        }
-        
-        // Discord 봇에 알림 전송
-        const botClient = require('../index');
-        const channelId = process.env.PARTY_NOTICE_CHANNEL_ID;
-        
-        if (channelId) {
-            const channel = botClient.channels.cache.get(channelId);
-            if (channel) {
-                const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-                
-                const partyConfig = {
-                    mock_battle: { name: '모의전', icon: '❌' },
-                    regular_battle: { name: '정규전', icon: '🔥' },
-                    black_claw: { name: '검은발톱', icon: '⚫' },
-                    pk: { name: 'PK', icon: '⚡' },
-                    raid: { name: '레이드', icon: '👑' },
-                    training: { name: '훈련', icon: '🎯' }
-                }[party.type];
-                
-                // 팀별 멤버 정리
-                const teams = {};
-                const waitingRoom = [];
-                
-                party.members.forEach(member => {
-                    if (member.team && member.team > 0) {
-                        if (!teams[member.team]) teams[member.team] = [];
-                        teams[member.team].push(member);
-                    } else {
-                        waitingRoom.push(member);
-                    }
-                });
-                
-                // 팀 구성 텍스트
-                let teamText = '';
-                if (Object.keys(teams).length > 0) {
-                    for (const [teamNum, members] of Object.entries(teams)) {
-                        teamText += `**${teamNum}팀**: ${members.map(m => m.username).join(', ') || '없음'}\n`;
-                    }
-                }
-                
-                if (waitingRoom.length > 0) {
-                    teamText += `**대기실**: ${waitingRoom.map(m => m.username).join(', ')}\n`;
-                }
-                
-                const embed = new EmbedBuilder()
-                    .setAuthor({
-                        name: 'Aimbot.DEV',
-                        iconURL: 'https://imgur.com/Sd8qK9c.gif'
-                    })
-                    .setTitle(`${partyConfig.icon} ${party.title}`)
-                    .setDescription(`**${party.description}**\n\n${teamText || '참가자가 없습니다.'}`)
-                    .setColor(0xFF0000)
-                    .addFields([
-                        {
-                            name: '📅 시작 시간',
-                            value: new Date(party.startTime).toLocaleString('ko-KR'),
-                            inline: true
-                        },
-                        {
-                            name: '👥 모집 인원',
-                            value: `${party.members.length}/${party.maxMembers}명`,
-                            inline: true
-                        },
-                        {
-                            name: '🎯 참가 조건',
-                            value: party.requirements || '제한 없음',
-                            inline: true
-                        }
-                    ])
-                    .setThumbnail('https://i.imgur.com/6G5xYJJ.png')
-                    .setFooter({
-                        text: '🔺DEUS VULT',
-                        iconURL: channel.guild.iconURL({ dynamic: true })
-                    })
-                    .setTimestamp();
-                
-                const button = new ActionRowBuilder()
-                    .addComponents(
-                        new ButtonBuilder()
-                            .setLabel('파티 참여하기')
-                            .setStyle(ButtonStyle.Link)
-                            .setURL(`${process.env.WEB_URL || 'http://localhost:3000'}/party/${party.id}`)
-                            .setEmoji('🔗')
-                    );
-                
-                // 기존 메시지 찾아서 업데이트 또는 새로 생성
-                const messages = await channel.messages.fetch({ limit: 20 });
-                const existingMessage = messages.find(m => 
-                    m.author.id === botClient.user.id && 
-                    m.embeds.length > 0 && 
-                    m.embeds[0].title?.includes(party.title)
-                );
-                
-                if (existingMessage) {
-                    await existingMessage.edit({
-                        embeds: [embed],
-                        components: [button]
-                    });
-                } else {
-                    await channel.send({
-                        embeds: [embed],
-                        components: [button]
-                    });
-                }
-            }
-        }
-        
-        res.json({ success: true });
-    } catch (error) {
-        logger.error(`파티 업데이트 알림 오류: ${error.message}`);
-        res.status(500).json({ success: false, error: error.message });
     }
 });
 

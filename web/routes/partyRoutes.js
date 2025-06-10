@@ -156,8 +156,10 @@ router.post('/api/join/:partyId', async (req, res) => {
             return res.status(400).json({ success: false, error: '이미 참여한 파티입니다.' });
         }
         
-        // 최소 점수 확인
+        // 사용자 전적 가져오기
         const userStats = await getUserStats(req.user.id);
+        
+        // 최소 점수 확인
         if (party.minScore && userStats.points < party.minScore) {
             return res.status(400).json({ 
                 success: false, 
@@ -180,7 +182,14 @@ router.post('/api/join/:partyId', async (req, res) => {
             selectedNationInfo: selectedNationInfo,
             team: 0, // 대기실
             joinedAt: new Date().toISOString(),
-            stats: userStats
+            stats: {
+                points: userStats.points,
+                winRate: userStats.winRate,
+                avgKills: userStats.avgKills,
+                totalGames: userStats.totalGames,
+                wins: userStats.wins,
+                losses: userStats.losses
+            }
         });
         
         await dataManager.write(`party_${partyId}`, party);

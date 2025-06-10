@@ -8,7 +8,7 @@ const CONFIG = {
     // 채널 ID
     CHANNEL_IDS: {
         partyList: process.env.PARTY_LIST_CHANNEL_ID || '1234567890', // 파티 목록이 표시될 채널
-        partyNotice: process.env.PARTY_NOTICE_CHANNEL_ID || '0987654321' // 파티 알림 채널
+        partyNotice: process.env.PARTY_NOTICE_CHANNEL_ID || '1376106637177126922' // 파티 알림 채널
     },
     
     // 역할 ID
@@ -253,6 +253,25 @@ module.exports = {
                 hour12: true
             });
             
+            // 시간 남은 계산
+            const now = new Date();
+            const timeDiff = startTime - now;
+            const hoursLeft = Math.floor(timeDiff / (1000 * 60 * 60));
+            const minutesLeft = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+            let timeLeftText = '';
+            if (timeDiff > 0) {
+                if (hoursLeft > 0) {
+                    timeLeftText = `⏰ **${hoursLeft}시간 ${minutesLeft}분 후 시작**`;
+                } else {
+                    timeLeftText = `⏰ **${minutesLeft}분 후 시작**`;
+                }
+            } else {
+                timeLeftText = '🚨 **진행 중**';
+            }
+            
+            // 개최자 전적 가져오기
+            const creatorStats = await this.getUserDetailedStats(party.createdBy);
+            
             // 참가자 목록 생성
             const waitingRoom = party.members.filter(m => !m.team || m.team === 0);
             const team1 = party.members.filter(m => m.team === 1);
@@ -264,27 +283,33 @@ module.exports = {
                     iconURL: process.env.EMBED_AUTHOR_ICON || 'https://imgur.com/Sd8qK9c.gif'
                 })
                 .setTitle(`${partyConfig.icon} **${partyConfig.name}** 파티 모집!`)
-                .setDescription(`### ${party.title}\n\n${party.description}`)
+                .setDescription(`## ${party.title}\n${timeLeftText}\n\n> ${party.description}`)
                 .setColor(partyConfig.color)
                 .addFields([
                     {
                         name: '👤 개최자',
-                        value: `**${party.createdByName}**`,
+                        value: `**${party.createdByName}**\n` +
+                               `└ 점수: ${creatorStats.points}점\n` +
+                               `└ 승률: ${creatorStats.winRate}%\n` +
+                               `└ 평균킬: ${creatorStats.avgKills}`,
                         inline: true
                     },
                     {
                         name: '📅 시작 시간',
-                        value: `**${formattedTime}**`,
+                        value: `**${formattedTime}**\n` +
+                               `└ 모집 인원: ${party.members.length}/${party.maxMembers}명\n` +
+                               `└ 상태: ${party.members.length >= party.maxMembers ? '❌ 마감' : '✅ 모집중'}`,
                         inline: true
                     },
                     {
-                        name: '👥 총 인원',
-                        value: `**${party.members.length}/${party.maxMembers}**명`,
+                        name: '🎮 파티 정보',
+                        value: `└ 타입: **${partyConfig.name}**\n` +
+                               `└ 최소점수: ${party.minScore > 0 ? party.minScore + '점' : '제한없음'}\n` +
+                               `└ 생성시간: <t:${Math.floor(new Date(party.createdAt).getTime() / 1000)}:R>`,
                         inline: true
                     }
                 ])
                 .setThumbnail('https://i.imgur.com/6G5xYJJ.png')
-                .setImage('https://i.imgur.com/AxeBESV.png')
                 .setFooter({
                     text: process.env.EMBED_FOOTER_TEXT || '🔺DEUS VULT',
                     iconURL: channel.guild.iconURL({ dynamic: true })
@@ -292,61 +317,94 @@ module.exports = {
                 .setTimestamp();
             
             // 참가 조건
-            if (party.requirements || party.minScore > 0) {
-                let reqText = '';
-                if (party.requirements) reqText += party.requirements;
-                if (party.minScore > 0) reqText += `\n최소 ${party.minScore}점`;
-                embed.addFields({ name: '🎯 참가 조건', value: reqText, inline: false });
+            if (party.requirements) {
+                embed.addFields({ 
+                    name: '📋 참가 조건', 
+                    value: `\`\`\`${party.requirements}\`\`\``, 
+                    inline: false 
+                });
             }
             
             // 대기실 표시
             if (waitingRoom.length > 0) {
-                const waitingList = waitingRoom.map(m => 
-                    `• **${m.username}** - ${m.selectedClassInfo?.name || '미선택'} (${m.selectedNationInfo?.name || '미선택'})`
-                ).join('\n');
+                const waitingList = waitingRoom.map(m => {
+                    const classIcon = m.selectedClassInfo?.icon || '❓';
+                    const className = m.selectedClassInfo?.name || '미선택';
+                    const nationName = m.selectedNationInfo?.name || '미선택';
+                    const stats = m.stats || { points: 0, winRate: 0 };
+                    return `${classIcon} **${m.username}** - ${className} (${nationName})\n└ ${stats.points}점 | 승률: ${stats.winRate}%`;
+                }).join('\n\n');
                 embed.addFields({ 
                     name: `🏠 대기실 (${waitingRoom.length}명)`, 
-                    value: waitingList.substring(0, 1024), 
+                    value: waitingList.substring(0, 1024) || '없음', 
                     inline: false 
                 });
             }
             
             // 팀별 멤버 표시
             if (party.type === 'mock_battle' || party.type === 'regular_battle' || party.type === 'training') {
-                if (team1.length > 0) {
-                    const team1List = team1.map(m => 
-                        `• **${m.username}** - ${m.selectedClassInfo?.name || '미선택'} (${m.selectedNationInfo?.name || '미선택'})`
-                    ).join('\n');
-                    embed.addFields({ 
-                        name: `🔴 1팀 (${team1.length}/5)`, 
-                        value: team1List.substring(0, 1024), 
-                        inline: true 
-                    });
-                }
+                const team1Text = team1.length > 0 ? team1.map(m => {
+                    const classIcon = m.selectedClassInfo?.icon || '❓';
+                    const className = m.selectedClassInfo?.name || '미선택';
+                    const stats = m.stats || { points: 0, winRate: 0 };
+                    return `${classIcon} **${m.username}**\n└ ${className} (${stats.points}점)`;
+                }).join('\n\n') : '대기 중...';
                 
-                if (team2.length > 0) {
-                    const team2List = team2.map(m => 
-                        `• **${m.username}** - ${m.selectedClassInfo?.name || '미선택'} (${m.selectedNationInfo?.name || '미선택'})`
-                    ).join('\n');
-                    embed.addFields({ 
-                        name: `🔵 2팀 (${team2.length}/5)`, 
-                        value: team2List.substring(0, 1024), 
+                const team2Text = team2.length > 0 ? team2.map(m => {
+                    const classIcon = m.selectedClassInfo?.icon || '❓';
+                    const className = m.selectedClassInfo?.name || '미선택';
+                    const stats = m.stats || { points: 0, winRate: 0 };
+                    return `${classIcon} **${m.username}**\n└ ${className} (${stats.points}점)`;
+                }).join('\n\n') : '대기 중...';
+                
+                embed.addFields(
+                    { 
+                        name: `🔴 1팀 (${team1.length}/5)`, 
+                        value: team1Text.substring(0, 1024), 
                         inline: true 
-                    });
-                }
+                    },
+                    { 
+                        name: `🔵 2팀 (${team2.length}/5)`, 
+                        value: team2Text.substring(0, 1024), 
+                        inline: true 
+                    }
+                );
             } else {
                 // 단일 팀인 경우
                 const teamMembers = party.members.filter(m => m.team === 1);
-                if (teamMembers.length > 0) {
-                    const teamList = teamMembers.map(m => 
-                        `• **${m.username}** - ${m.selectedClassInfo?.name || '미선택'} (${m.selectedNationInfo?.name || '미선택'})`
-                    ).join('\n');
+                if (teamMembers.length > 0 || party.members.length > 0) {
+                    const teamList = (teamMembers.length > 0 ? teamMembers : party.members).map(m => {
+                        const classIcon = m.selectedClassInfo?.icon || '❓';
+                        const className = m.selectedClassInfo?.name || '미선택';
+                        const nationName = m.selectedNationInfo?.name || '미선택';
+                        const stats = m.stats || { points: 0, winRate: 0 };
+                        return `${classIcon} **${m.username}** - ${className} (${nationName})\n└ ${stats.points}점 | 승률: ${stats.winRate}% | 평균킬: ${stats.avgKills || 0}`;
+                    }).join('\n\n');
                     embed.addFields({ 
-                        name: `⚔️ 참가자 (${teamMembers.length}/5)`, 
-                        value: teamList.substring(0, 1024), 
+                        name: `⚔️ 참가자 (${teamMembers.length || party.members.length}/${party.maxMembers})`, 
+                        value: teamList.substring(0, 1024) || '없음', 
                         inline: false 
                     });
                 }
+            }
+            
+            // 현재 파티 통계
+            if (party.members.length > 0) {
+                const avgPoints = Math.round(party.members.reduce((sum, m) => sum + (m.stats?.points || 0), 0) / party.members.length);
+                const avgWinRate = Math.round(party.members.reduce((sum, m) => sum + (m.stats?.winRate || 0), 0) / party.members.length);
+                
+                embed.addFields({
+                    name: '📊 파티 평균 스탯',
+                    value: `평균 점수: **${avgPoints}점** | 평균 승률: **${avgWinRate}%**`,
+                    inline: false
+                });
+            }
+            
+            // 이미지 설정
+            if (party.members.length >= party.maxMembers) {
+                embed.setImage('https://i.imgur.com/YourFullImage.png'); // 마감 이미지
+            } else {
+                embed.setImage('https://i.imgur.com/AxeBESV.png'); // 모집 중 이미지
             }
             
             const button = new ActionRowBuilder()
@@ -356,7 +414,12 @@ module.exports = {
                         .setStyle(ButtonStyle.Link)
                         .setURL(`${CONFIG.WEB_URL}/party/${party.id}`)
                         .setEmoji('🔗')
+                        .setDisabled(party.members.length >= party.maxMembers)
                 );
+            
+            // 히얼 역할 찾기
+            const hereRole = channel.guild.roles.cache.find(role => role.name === '히얼' || role.name === '@here');
+            const mentionContent = hereRole ? `<@&${hereRole.id}>` : '@here';
             
             if (isUpdate && CONFIG.embedMessages.has(party.id)) {
                 // 기존 메시지 업데이트
@@ -364,16 +427,24 @@ module.exports = {
                 try {
                     const message = await channel.messages.fetch(messageId);
                     await message.edit({
+                        content: party.members.length >= party.maxMembers ? '**[마감됨]**' : mentionContent,
                         embeds: [embed],
                         components: [button]
                     });
                 } catch (error) {
                     logger.error(`메시지 업데이트 실패: ${error.message}`);
+                    // 실패 시 새 메시지 전송
+                    const message = await channel.send({
+                        content: mentionContent,
+                        embeds: [embed],
+                        components: [button]
+                    });
+                    CONFIG.embedMessages.set(party.id, message.id);
                 }
             } else {
                 // 새 메시지 전송
                 const message = await channel.send({
-                    content: '@everyone',
+                    content: mentionContent,
                     embeds: [embed],
                     components: [button]
                 });

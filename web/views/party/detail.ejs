@@ -190,36 +190,19 @@
                         <select name="selectedClass" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2">
                             <option value="">병과를 선택하세요</option>
                             <optgroup label="일반 병과">
-                                <% if (typeof PARTY_CONFIG !== 'undefined' && PARTY_CONFIG.CLASSES && PARTY_CONFIG.CLASSES.일반) { %>
-                                    <% PARTY_CONFIG.CLASSES.일반.forEach(cls => { %>
-                                        <option value="<%= cls.id %>">
-                                            <%= cls.icon %> <%= cls.name %>
-                                        </option>
-                                    <% }) %>
-                                <% } else if (typeof classes !== 'undefined' && classes.일반) { %>
-                                    <% classes.일반.forEach(cls => { %>
-                                        <option value="<%= cls %>"><%= cls %></option>
-                                    <% }) %>
-                                <% } %>
+                                <% classes.일반.forEach(cls => { %>
+                                    <option value="<%= cls.id %>">
+                                        <%= cls.icon %> <%= cls.name %>
+                                    </option>
+                                <% }) %>
                             </optgroup>
-                            <% 
-                            // 귀족 역할이 있는 경우에만 귀족 병과 표시
-                            const hasNobleRole = false; // TODO: 실제 역할 확인으로 변경
-                            if (hasNobleRole) { %>
-                                <optgroup label="귀족 병과">
-                                    <% if (typeof PARTY_CONFIG !== 'undefined' && PARTY_CONFIG.CLASSES && PARTY_CONFIG.CLASSES.귀족) { %>
-                                        <% PARTY_CONFIG.CLASSES.귀족.forEach(cls => { %>
-                                            <option value="<%= cls.id %>">
-                                                <%= cls.icon %> <%= cls.name %>
-                                            </option>
-                                        <% }) %>
-                                    <% } else if (typeof classes !== 'undefined' && classes.귀족) { %>
-                                        <% classes.귀족.forEach(cls => { %>
-                                            <option value="<%= cls %>"><%= cls %></option>
-                                        <% }) %>
-                                    <% } %>
-                                </optgroup>
-                            <% } %>
+                            <optgroup label="귀족 병과">
+                                <% classes.귀족.forEach(cls => { %>
+                                    <option value="<%= cls.id %>">
+                                        <%= cls.icon %> <%= cls.name %>
+                                    </option>
+                                <% }) %>
+                            </optgroup>
                         </select>
                     </div>
                     
@@ -227,19 +210,11 @@
                         <label class="block text-sm font-medium text-gray-400 mb-2">국가 선택</label>
                         <select name="selectedNation" required class="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2">
                             <option value="">국가를 선택하세요</option>
-                            <% if (typeof PARTY_CONFIG !== 'undefined' && PARTY_CONFIG.NATIONS) { %>
-                                <% PARTY_CONFIG.NATIONS.forEach(nation => { %>
-                                    <option value="<%= nation.id %>">
-                                        <%= nation.name %>
-                                    </option>
-                                <% }) %>
-                            <% } else if (typeof nations !== 'undefined') { %>
-                                <% nations.forEach(nation => { %>
-                                    <option value="<%= nation.id %>">
-                                        <%= nation.name %>
-                                    </option>
-                                <% }) %>
-                            <% } %>
+                            <% nations.forEach(nation => { %>
+                                <option value="<%= nation.id %>">
+                                    <%= nation.name %>
+                                </option>
+                            <% }) %>
                         </select>
                     </div>
                 </div>
@@ -282,7 +257,7 @@
 <% if (isCreator && party.status === 'recruiting') { %>
     <div class="glass-dark rounded-lg p-6 mt-6 text-center">
         <h3 class="text-xl font-semibold mb-4">파티 관리</h3>
-        <button onclick="cancelParty()" class="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg transition">
+        <button onclick="cancelParty()" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg transition">
             <i class="fas fa-times mr-2"></i>파티 취소
         </button>
     </div>
