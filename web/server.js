@@ -66,7 +66,7 @@ app.use(session({
     }),
     secret: CONFIG.SESSION_SECRET,
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false, // false로 변경하여 불필요한 세션 생성 방지
     cookie: {
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,
@@ -161,11 +161,15 @@ app.get('/login', (req, res) => {
             return res.redirect('/');
         }
     }
-    res.render('login');
+    res.render('login', { returnTo: req.session.returnTo });
 });
 
 // Discord OAuth2 인증 시작
 app.get('/auth/discord', (req, res, next) => {
+    // returnTo 파라미터 저장
+    if (req.query.returnTo) {
+        req.session.returnTo = req.query.returnTo;
+    }
     logger.info('🔐 Discord OAuth2 인증 시작');
     passport.authenticate('discord')(req, res, next);
 });
@@ -216,7 +220,36 @@ app.get('/logout', (req, res) => {
 
 // API 라우트
 
-// 파티 알림 API 추가
+// 파티 알림 API 수정 - Discord 봇 클라이언트 직접 사용
+app.post('/api/party/notify/:partyId', async (req, res) => {
+    try {
+        const partyId = req.params.partyId;
+        const party = await dataManager.read(`party_${partyId}`);
+        
+        if (!party) {
+            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
+        }
+        
+        // Discord 봇 클라이언트 가져오기
+        const botClient = require('../index');
+        
+        // 파티 모듈 찾기
+        const partyModule = botClient.modules.get('party');
+        if (partyModule && partyModule.sendOrUpdatePartyNotice) {
+            await partyModule.sendOrUpdatePartyNotice(party, botClient, false);
+            logger.info(`파티 알림 전송: ${party.title}`);
+            res.json({ success: true });
+        } else {
+            logger.error('파티 모듈을 찾을 수 없습니다.');
+            res.status(500).json({ success: false, error: '파티 모듈을 찾을 수 없습니다.' });
+        }
+    } catch (error) {
+        logger.error(`파티 알림 API 오류: ${error.message}`);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 파티 업데이트 알림 API
 app.post('/api/party/update/:partyId', async (req, res) => {
     try {
         const partyId = req.params.partyId;
@@ -231,45 +264,16 @@ app.post('/api/party/update/:partyId', async (req, res) => {
         
         // 파티 모듈 찾기
         const partyModule = botClient.modules.get('party');
-        if (partyModule) {
+        if (partyModule && partyModule.sendOrUpdatePartyNotice) {
             await partyModule.sendOrUpdatePartyNotice(party, botClient, true);
             logger.info(`파티 알림 업데이트: ${party.title}`);
+            res.json({ success: true });
         } else {
             logger.error('파티 모듈을 찾을 수 없습니다.');
+            res.status(500).json({ success: false, error: '파티 모듈을 찾을 수 없습니다.' });
         }
-        
-        res.json({ success: true });
     } catch (error) {
-        logger.error(`파티 알림 API 오류: ${error.message}`);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// 파티 생성 알림 API
-app.post('/api/party/created/:partyId', async (req, res) => {
-    try {
-        const partyId = req.params.partyId;
-        const party = await dataManager.read(`party_${partyId}`);
-        
-        if (!party) {
-            return res.status(404).json({ success: false, error: '파티를 찾을 수 없습니다.' });
-        }
-        
-        // Discord 봇 클라이언트 가져오기
-        const botClient = require('../index');
-        
-        // 파티 모듈 찾기
-        const partyModule = botClient.modules.get('party');
-        if (partyModule) {
-            await partyModule.sendOrUpdatePartyNotice(party, botClient, false);
-            logger.info(`새 파티 알림 전송: ${party.title}`);
-        } else {
-            logger.error('파티 모듈을 찾을 수 없습니다.');
-        }
-        
-        res.json({ success: true });
-    } catch (error) {
-        logger.error(`파티 생성 알림 API 오류: ${error.message}`);
+        logger.error(`파티 업데이트 API 오류: ${error.message}`);
         res.status(500).json({ success: false, error: error.message });
     }
 });

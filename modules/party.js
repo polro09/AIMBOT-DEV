@@ -27,10 +27,7 @@ const CONFIG = {
     
     // 기타 설정
     PREFIX: '!',
-    WEB_URL: process.env.WEB_URL || 'http://localhost:3000',
-    
-    // 임베드 메시지 ID 저장 (업데이트용)
-    embedMessages: new Map()
+    WEB_URL: process.env.WEB_URL || 'http://localhost:3000'
 };
 
 // 모듈 정보
@@ -49,9 +46,6 @@ module.exports = {
         
         // 인터랙션 이벤트 리스너 등록
         client.on('interactionCreate', (interaction) => this.handleInteraction(interaction, client));
-        
-        // 웹 API 이벤트 처리 (웹서버와 연동)
-        this.initWebAPI(client);
     },
     
     // 메시지 처리
@@ -231,7 +225,10 @@ module.exports = {
     async sendOrUpdatePartyNotice(party, client, isUpdate = false) {
         try {
             const channel = client.channels.cache.get(CONFIG.CHANNEL_IDS.partyNotice);
-            if (!channel) return;
+            if (!channel) {
+                logger.error(`파티 알림 채널을 찾을 수 없습니다: ${CONFIG.CHANNEL_IDS.partyNotice}`);
+                return;
+            }
             
             const partyConfig = {
                 mock_battle: { name: '모의전', icon: '⚔️', color: 0x808080 },
@@ -377,7 +374,7 @@ module.exports = {
                         const classIcon = m.selectedClassInfo?.icon || '❓';
                         const className = m.selectedClassInfo?.name || '미선택';
                         const nationName = m.selectedNationInfo?.name || '미선택';
-                        const stats = m.stats || { points: 0, winRate: 0 };
+                        const stats = m.stats || { points: 0, winRate: 0, avgKills: 0 };
                         return `${classIcon} **${m.username}** - ${className} (${nationName})\n└ ${stats.points}점 | 승률: ${stats.winRate}% | 평균킬: ${stats.avgKills || 0}`;
                     }).join('\n\n');
                     embed.addFields({ 
@@ -421,16 +418,16 @@ module.exports = {
             const hereRole = channel.guild.roles.cache.find(role => role.name === '히얼' || role.name === '@here');
             const mentionContent = hereRole ? `<@&${hereRole.id}>` : '@here';
             
-            if (isUpdate && CONFIG.embedMessages.has(party.id)) {
+            if (isUpdate && party.embedMessageId) {
                 // 기존 메시지 업데이트
-                const messageId = CONFIG.embedMessages.get(party.id);
                 try {
-                    const message = await channel.messages.fetch(messageId);
+                    const message = await channel.messages.fetch(party.embedMessageId);
                     await message.edit({
                         content: party.members.length >= party.maxMembers ? '**[마감됨]**' : mentionContent,
                         embeds: [embed],
                         components: [button]
                     });
+                    logger.info(`파티 알림 업데이트: ${party.title}`);
                 } catch (error) {
                     logger.error(`메시지 업데이트 실패: ${error.message}`);
                     // 실패 시 새 메시지 전송
@@ -439,7 +436,8 @@ module.exports = {
                         embeds: [embed],
                         components: [button]
                     });
-                    CONFIG.embedMessages.set(party.id, message.id);
+                    party.embedMessageId = message.id;
+                    await dataManager.write(`party_${party.id}`, party);
                 }
             } else {
                 // 새 메시지 전송
@@ -448,81 +446,13 @@ module.exports = {
                     embeds: [embed],
                     components: [button]
                 });
-                CONFIG.embedMessages.set(party.id, message.id);
+                party.embedMessageId = message.id;
+                await dataManager.write(`party_${party.id}`, party);
+                logger.success(`파티 알림 전송: ${party.title}`);
             }
         } catch (error) {
             logger.error(`Discord 알림 전송 오류: ${error.message}`);
         }
-    },
-    
-    // 웹 API 초기화
-    initWebAPI(client) {
-        // 웹 서버의 API 엔드포인트 추가
-        try {
-            const { app } = require('../web/server');
-            
-            if (!app) {
-                logger.warn('웹 서버가 초기화되지 않았습니다.');
-                return;
-            }
-            
-            // 파티 생성 웹훅
-            app.post('/api/party/create', async (req, res, next) => {
-                // 인증 체크는 웹서버에서 처리
-                if (!req.user) return next();
-                
-                try {
-                    const partyData = req.body;
-                    const party = await this.createParty(partyData, req.user, client);
-                    
-                    res.json({ success: true, partyId: party.id });
-                } catch (error) {
-                    logger.error(`파티 생성 API 오류: ${error.message}`);
-                    res.status(500).json({ success: false, error: error.message });
-                }
-            });
-            
-            // 파티 업데이트 웹훅
-            app.post('/api/party/update/:partyId', async (req, res, next) => {
-                if (!req.user) return next();
-                
-                try {
-                    const party = await dataManager.read(`party_${req.params.partyId}`);
-                    if (party) {
-                        await this.sendOrUpdatePartyNotice(party, client, true);
-                    }
-                    res.json({ success: true });
-                } catch (error) {
-                    logger.error(`파티 업데이트 API 오류: ${error.message}`);
-                    res.status(500).json({ success: false, error: error.message });
-                }
-            });
-        } catch (error) {
-            logger.warn(`웹 API 초기화 건너뜀: ${error.message}`);
-        }
-    },
-    
-    // 파티 생성
-    async createParty(partyData, user, client) {
-        const partyId = Date.now().toString();
-        const party = {
-            id: partyId,
-            ...partyData,
-            createdBy: user.id,
-            createdByName: user.username,
-            createdAt: new Date().toISOString(),
-            members: [],
-            status: 'recruiting'
-        };
-        
-        // 파티 데이터 저장
-        await dataManager.write(`party_${partyId}`, party);
-        
-        // Discord 채널에 알림
-        await this.sendOrUpdatePartyNotice(party, client, false);
-        
-        logger.success(`새 파티 생성: ${party.title} (${partyId})`);
-        return party;
     },
     
     // 사용자 상세 통계 가져오기

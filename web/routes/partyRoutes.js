@@ -130,7 +130,7 @@ router.post('/api/create', async (req, res) => {
         await dataManager.write(`party_${partyId}`, party);
         
         // Discord 봇에 알림 전송
-        await notifyDiscord(party, false);
+        await notifyDiscord(party, 'create');
         
         logger.success(`파티 생성: ${title} by ${req.user.username}`);
         res.json({ success: true, partyId: partyId });
@@ -188,14 +188,15 @@ router.post('/api/join/:partyId', async (req, res) => {
                 avgKills: userStats.avgKills,
                 totalGames: userStats.totalGames,
                 wins: userStats.wins,
-                losses: userStats.losses
+                losses: userStats.losses,
+                totalKills: userStats.totalKills
             }
         });
         
         await dataManager.write(`party_${partyId}`, party);
         
         // Discord 알림 업데이트
-        await notifyDiscord(party, true);
+        await notifyDiscord(party, 'update');
         
         logger.info(`파티 참여 (대기실): ${req.user.username} -> ${party.title}`);
         res.json({ success: true });
@@ -237,7 +238,7 @@ router.post('/api/move/:partyId', async (req, res) => {
         await dataManager.write(`party_${partyId}`, party);
         
         // Discord 알림 업데이트
-        await notifyDiscord(party, true);
+        await notifyDiscord(party, 'update');
         
         logger.info(`팀 이동: ${req.user.username} -> 팀 ${targetTeam}`);
         res.json({ success: true });
@@ -261,7 +262,7 @@ router.post('/api/leave/:partyId', async (req, res) => {
         await dataManager.write(`party_${partyId}`, party);
         
         // Discord 알림 업데이트
-        await notifyDiscord(party, true);
+        await notifyDiscord(party, 'update');
         
         logger.info(`파티 나가기: ${req.user.username} <- ${party.title}`);
         res.json({ success: true });
@@ -291,7 +292,7 @@ router.post('/api/cancel/:partyId', async (req, res) => {
         await dataManager.write(`party_${partyId}`, party);
         
         // Discord 알림에서 취소 표시
-        await notifyDiscordCancelled(party);
+        await notifyDiscord(party, 'cancel');
         
         logger.warn(`파티 취소: ${party.title} by ${req.user.username}`);
         res.json({ success: true });
@@ -405,28 +406,36 @@ async function getActiveParties() {
 }
 
 // Discord 알림 전송 함수
-async function notifyDiscord(party, isUpdate = false) {
+async function notifyDiscord(party, action = 'update') {
     try {
-        // 봇 클라이언트를 통해 알림 전송
-        const response = await fetch(`http://localhost:${process.env.WEB_PORT || 3000}/api/party/update/${party.id}`, {
+        const baseUrl = `http://localhost:${process.env.WEB_PORT || 3000}`;
+        let endpoint = '';
+        
+        switch (action) {
+            case 'create':
+                endpoint = `/api/party/notify/${party.id}`;
+                break;
+            case 'update':
+                endpoint = `/api/party/update/${party.id}`;
+                break;
+            case 'cancel':
+                endpoint = `/api/party/cancelled/${party.id}`;
+                break;
+            default:
+                endpoint = `/api/party/update/${party.id}`;
+        }
+        
+        const response = await fetch(baseUrl + endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
         });
+        
+        if (!response.ok) {
+            const error = await response.text();
+            logger.error(`Discord 알림 전송 실패: ${error}`);
+        }
     } catch (error) {
         logger.error(`Discord 알림 전송 실패: ${error.message}`);
-    }
-}
-
-// Discord 취소 알림
-async function notifyDiscordCancelled(party) {
-    try {
-        // 취소 알림 전송
-        const response = await fetch(`http://localhost:${process.env.WEB_PORT || 3000}/api/party/cancelled/${party.id}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-    } catch (error) {
-        logger.error(`Discord 취소 알림 전송 실패: ${error.message}`);
     }
 }
 

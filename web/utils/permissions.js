@@ -153,6 +153,8 @@ const permissionManager = new PermissionManager();
 // 미들웨어 함수들
 function requireAuth(req, res, next) {
     if (req.isAuthenticated()) {
+        // 사용자 역할 설정
+        req.userRole = permissionManager.getUserRole(req.user.id);
         return next();
     }
     // 현재 URL을 세션에 저장
@@ -169,8 +171,9 @@ function requireRole(role) {
         }
         
         const userRole = permissionManager.getUserRole(req.user.id);
+        req.userRole = userRole;
+        
         if (permissionManager.hasPermission(userRole, role)) {
-            req.userRole = userRole;
             return next();
         }
         
@@ -196,7 +199,8 @@ function checkPagePermission(req, res, next) {
     
     res.status(403).render('error', { 
         error: '이 페이지에 접근할 권한이 없습니다.',
-        user: req.user 
+        user: req.user,
+        userRole: userRole
     });
 }
 
