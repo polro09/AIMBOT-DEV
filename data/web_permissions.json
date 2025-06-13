@@ -3,10 +3,13 @@
     "/": "guest",
     "/dashboard": "admin",
     "/admin/permissions": "admin",
+    "/admin/party": "admin",
     "/servers": "member",
+    "/party": "member",
+    "/party/create": "member",
     "/logs": "admin",
-    "/settings": "admin"
+    "/settings": "member"
   },
   "userRoles": {},
-  "createdAt": "2025-06-06T02:19:14.065Z"
+  "createdAt": "2025-06-13T07:41:08.326Z"
 }

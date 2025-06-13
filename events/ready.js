@@ -1,3 +1,6 @@
+// ========================================
+// events/ready.js
+// ========================================
 const logger = require('../utils/logger');
 
 module.exports = {

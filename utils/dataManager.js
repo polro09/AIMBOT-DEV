@@ -1,3 +1,6 @@
+// ========================================
+// utils/dataManager.js
+// ========================================
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');
@@ -9,7 +12,6 @@ class DataManager {
         this.initializeDataDirectory();
     }
     
-    // 데이터 디렉토리 초기화
     async initializeDataDirectory() {
         try {
             await fs.access(this.dataPath);
@@ -19,7 +21,6 @@ class DataManager {
         }
     }
     
-    // 파일 경로 생성
     getFilePath(filename) {
         if (!filename.endsWith('.json')) {
             filename += '.json';
@@ -27,21 +28,17 @@ class DataManager {
         return path.join(this.dataPath, filename);
     }
     
-    // 데이터 읽기
     async read(filename) {
         try {
             const filePath = this.getFilePath(filename);
             
-            // 캐시 확인
             if (this.cache.has(filename)) {
                 return this.cache.get(filename);
             }
             
-            // 파일 읽기
             const data = await fs.readFile(filePath, 'utf8');
             const parsed = JSON.parse(data);
             
-            // 캐시에 저장
             this.cache.set(filename, parsed);
             
             return parsed;
@@ -55,7 +52,6 @@ class DataManager {
         }
     }
     
-    // 데이터 쓰기
     async write(filename, data) {
         try {
             const filePath = this.getFilePath(filename);
@@ -63,7 +59,6 @@ class DataManager {
             
             await fs.writeFile(filePath, jsonData, 'utf8');
             
-            // 캐시 업데이트
             this.cache.set(filename, data);
             
             logger.debug(`데이터 저장됨: ${filename}`);
@@ -74,13 +69,11 @@ class DataManager {
         }
     }
     
-    // 데이터 삭제
     async delete(filename) {
         try {
             const filePath = this.getFilePath(filename);
             await fs.unlink(filePath);
             
-            // 캐시에서 제거
             this.cache.delete(filename);
             
             logger.debug(`데이터 삭제됨: ${filename}`);
@@ -95,7 +88,6 @@ class DataManager {
         }
     }
     
-    // 데이터 존재 확인
     async exists(filename) {
         try {
             const filePath = this.getFilePath(filename);
@@ -106,7 +98,6 @@ class DataManager {
         }
     }
     
-    // 서버별 데이터 관리
     async getGuildData(guildId, defaultData = {}) {
         const filename = `guild_${guildId}`;
         let data = await this.read(filename);
@@ -135,7 +126,6 @@ class DataManager {
         return await this.write(filename, newData);
     }
     
-    // 유저별 데이터 관리
     async getUserData(userId, defaultData = {}) {
         const filename = `user_${userId}`;
         let data = await this.read(filename);
@@ -164,13 +154,11 @@ class DataManager {
         return await this.write(filename, newData);
     }
     
-    // 캐시 관리
     clearCache() {
         this.cache.clear();
         logger.debug('데이터 캐시가 초기화되었습니다.');
     }
     
-    // 백업 생성
     async createBackup() {
         try {
             const backupPath = path.join(process.cwd(), 'backups');
@@ -180,7 +168,6 @@ class DataManager {
             const backupDir = path.join(backupPath, `backup_${timestamp}`);
             await fs.mkdir(backupDir);
             
-            // 모든 데이터 파일 복사
             const files = await fs.readdir(this.dataPath);
             for (const file of files) {
                 if (file.endsWith('.json')) {
@@ -198,7 +185,6 @@ class DataManager {
         }
     }
     
-    // 통계 정보
     async getStats() {
         try {
             const files = await fs.readdir(this.dataPath);
@@ -225,5 +211,4 @@ class DataManager {
     }
 }
 
-// 싱글톤 인스턴스 생성 및 내보내기
 module.exports = new DataManager();

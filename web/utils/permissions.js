@@ -1,11 +1,14 @@
+// ========================================
+// web/utils/permissions.js
+// ========================================
 const dataManager = require('../../utils/dataManager');
 const logger = require('../../utils/logger');
 
 // 권한 레벨
 const ROLES = {
-    GUEST: 'guest',      // 권한 없음 (홈만 접속 가능)
-    MEMBER: 'member',    // 일반 멤버
-    ADMIN: 'admin'       // 관리자
+    GUEST: 'guest',
+    MEMBER: 'member',
+    ADMIN: 'admin'
 };
 
 // 페이지별 필요 권한
@@ -26,14 +29,12 @@ class PermissionManager {
         this.loadPermissions();
     }
     
-    // 권한 설정 로드
     async loadPermissions() {
         try {
             const permissions = await dataManager.read('web_permissions');
             if (permissions) {
                 this.permissions = permissions;
             } else {
-                // 기본 권한 설정
                 this.permissions = {
                     pagePermissions: PAGE_PERMISSIONS,
                     userRoles: {},
@@ -50,7 +51,6 @@ class PermissionManager {
         }
     }
     
-    // 권한 저장
     async savePermissions() {
         try {
             await dataManager.write('web_permissions', this.permissions);
@@ -60,9 +60,7 @@ class PermissionManager {
         }
     }
     
-    // 사용자 역할 가져오기
     getUserRole(userId) {
-        // 환경변수에 설정된 관리자는 항상 ADMIN
         const adminIds = process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [];
         if (adminIds.includes(userId)) {
             return ROLES.ADMIN;
@@ -71,7 +69,6 @@ class PermissionManager {
         return this.permissions.userRoles[userId] || ROLES.GUEST;
     }
     
-    // 사용자 역할 설정
     async setUserRole(userId, role) {
         if (!Object.values(ROLES).includes(role)) {
             throw new Error('잘못된 역할입니다.');
@@ -79,29 +76,26 @@ class PermissionManager {
         
         this.permissions.userRoles[userId] = role;
         await this.savePermissions();
-        logger.info(`👤 사용자 권한 변경: ${userId} -> ${role}`);
+        logger.info(`📝 사용자 권한 변경: ${userId} -> ${role}`);
     }
     
-    // 페이지 접근 권한 확인
-    canAccessPage(userId, path) {
-        const userRole = this.getUserRole(userId);
-        const requiredRole = this.permissions.pagePermissions[path] || ROLES.MEMBER;
-        
-        return this.hasPermission(userRole, requiredRole);
-    }
-    
-    // 권한 레벨 비교
     hasPermission(userRole, requiredRole) {
-        const roleLevel = {
+        const roleHierarchy = {
             [ROLES.GUEST]: 0,
             [ROLES.MEMBER]: 1,
             [ROLES.ADMIN]: 2
         };
         
-        return roleLevel[userRole] >= roleLevel[requiredRole];
+        return roleHierarchy[userRole] >= roleHierarchy[requiredRole];
     }
     
-    // 페이지 권한 설정
+    canAccessPage(userId, path) {
+        const userRole = this.getUserRole(userId);
+        const requiredRole = this.permissions.pagePermissions[path] || ROLES.GUEST;
+        
+        return this.hasPermission(userRole, requiredRole);
+    }
+    
     async setPagePermission(path, role) {
         if (!Object.values(ROLES).includes(role)) {
             throw new Error('잘못된 역할입니다.');
@@ -112,7 +106,6 @@ class PermissionManager {
         logger.info(`📄 페이지 권한 변경: ${path} -> ${role}`);
     }
     
-    // 모든 사용자 목록 가져오기
     async getAllUsers() {
         const users = [];
         const files = await require('fs').promises.readdir(require('path').join(process.cwd(), 'data'));
@@ -133,7 +126,6 @@ class PermissionManager {
         return users;
     }
     
-    // 통계
     getStats() {
         const userRoles = this.permissions.userRoles;
         const stats = {
@@ -153,11 +145,9 @@ const permissionManager = new PermissionManager();
 // 미들웨어 함수들
 function requireAuth(req, res, next) {
     if (req.isAuthenticated()) {
-        // 사용자 역할 설정
         req.userRole = permissionManager.getUserRole(req.user.id);
         return next();
     }
-    // 현재 URL을 세션에 저장
     req.session.returnTo = req.originalUrl;
     res.redirect('/login');
 }
@@ -165,7 +155,6 @@ function requireAuth(req, res, next) {
 function requireRole(role) {
     return (req, res, next) => {
         if (!req.isAuthenticated()) {
-            // 현재 URL을 세션에 저장
             req.session.returnTo = req.originalUrl;
             return res.redirect('/login');
         }

@@ -1,76 +1,65 @@
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
-
-// 로거 시스템
+const config = require('./config');
 const logger = require('./utils/logger');
+const BotClientManager = require('./utils/botClientManager');
+const eventBus = require('./utils/eventBus');
 
-// 클라이언트 생성
+// 봇 클라이언트 생성
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates
     ]
 });
 
-// 컬렉션 초기화
+// 봇 클라이언트를 전역적으로 사용 가능하게 설정
+BotClientManager.setClient(client);
+
+// 모듈 컬렉션
 client.modules = new Collection();
-client.commands = new Collection();
-client.events = new Collection();
 
-// 데이터 폴더 확인 및 생성
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-    logger.info('📁 데이터 폴더가 생성되었습니다.');
-}
-
-// 모듈 로딩 함수
+// 모듈 로드 함수
 async function loadModules() {
     const modulesPath = path.join(__dirname, 'modules');
     
     if (!fs.existsSync(modulesPath)) {
-        fs.mkdirSync(modulesPath, { recursive: true });
-        logger.warn('📦 모듈 폴더가 생성되었습니다.');
+        logger.warn('📁 modules 폴더가 없습니다. 폴더를 생성합니다.');
+        fs.mkdirSync(modulesPath);
         return;
     }
-
+    
     const moduleFiles = fs.readdirSync(modulesPath).filter(file => file.endsWith('.js'));
-
+    
     for (const file of moduleFiles) {
         try {
             const module = require(path.join(modulesPath, file));
             
-            if (module.name && module.execute) {
+            if (module.name && module.init) {
+                await module.init(client);
                 client.modules.set(module.name, module);
-                
-                // 모듈 초기화
-                if (module.init) {
-                    await module.init(client);
-                }
-                
                 logger.success(`✅ 모듈 로드됨: ${module.name}`);
             } else {
                 logger.error(`❌ 잘못된 모듈 형식: ${file}`);
             }
         } catch (error) {
             logger.error(`❌ 모듈 로드 실패: ${file} - ${error.message}`);
+            logger.error(error.stack);
         }
     }
 }
 
-// 이벤트 핸들러 로딩
+// 이벤트 로드 함수
 async function loadEvents() {
     const eventsPath = path.join(__dirname, 'events');
     
     if (!fs.existsSync(eventsPath)) {
-        fs.mkdirSync(eventsPath, { recursive: true });
-        logger.warn('📅 이벤트 폴더가 생성되었습니다.');
+        logger.warn('📁 events 폴더가 없습니다. 폴더를 생성합니다.');
+        fs.mkdirSync(eventsPath);
         return;
     }
 
@@ -87,7 +76,7 @@ async function loadEvents() {
                     client.on(event.name, (...args) => event.execute(...args, client));
                 }
                 
-                logger.success(`✅ 이벤트 로드됨: ${event.name}`);
+                logger.success(`📅 이벤트 로드됨: ${event.name}`);
             } else {
                 logger.error(`❌ 잘못된 이벤트 형식: ${file}`);
             }
@@ -108,7 +97,8 @@ client.once('ready', async () => {
     
     // 웹 서버 시작
     try {
-        require('./web/server');
+        const { startWebServer } = require('./web/server');
+        await startWebServer();
     } catch (error) {
         logger.error(`웹 서버 시작 실패: ${error.message}`);
     }
@@ -117,10 +107,38 @@ client.once('ready', async () => {
 // 오류 처리
 client.on('error', error => {
     logger.error(`클라이언트 오류: ${error.message}`);
+    logger.error(error.stack);
 });
 
 process.on('unhandledRejection', error => {
     logger.error(`처리되지 않은 거부: ${error.message}`);
+    logger.error(error.stack);
+});
+
+process.on('uncaughtException', error => {
+    logger.error(`잡히지 않은 예외: ${error.message}`);
+    logger.error(error.stack);
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    logger.info('🛑 봇 종료 신호를 받았습니다...');
+    
+    try {
+        client.destroy();
+        logger.success('✅ Discord 클라이언트가 종료되었습니다.');
+        
+        // EventBus 이벤트 발행
+        eventBus.safeEmit('bot:shutdown');
+        
+        // 잠시 대기 후 종료
+        setTimeout(() => {
+            process.exit(0);
+        }, 1000);
+    } catch (error) {
+        logger.error(`종료 중 오류: ${error.message}`);
+        process.exit(1);
+    }
 });
 
 // 봇 시작
@@ -129,12 +147,7 @@ async function start() {
         logger.separator();
         logger.banner('AIMDOT.DEV BOT');
         logger.separator();
-
-        // 봇 정보 출력
-        logger.system(`🤖 봇 로그인: ${process.env.BOT_NAME || 'Aimbot.DEV'}`);
-        logger.info(`📊 서버 수: ${client.guilds.cache.size}`);
-        logger.info(`👥 전체 유저 수: ${client.users.cache.size}`);
-        logger.info(`📺 채널 수: ${client.channels.cache.size}`);
+        logger.system('🚀 시스템을 시작하는 중...');
         logger.separator();
 
         // 환경 변수 확인
@@ -152,56 +165,14 @@ async function start() {
         
         // 봇 로그인
         logger.info('🤖 Discord 봇 로그인 중...');
-        await client.login(process.env.DISCORD_TOKEN);
-        
-        logger.separator();
-        logger.success('✅ 봇이 성공적으로 시작되었습니다!');
-        logger.separator();
-        
-        // 웹 대시보드 시작 (옵션)
-        if (process.env.ENABLE_WEB_DASHBOARD === 'true') {
-            logger.info('🌐 웹 대시보드를 시작하는 중...');
-            
-            // 웹 서버 환경 변수 확인
-            const webRequiredVars = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET'];
-            const missingWebVars = webRequiredVars.filter(varName => !process.env[varName]);
-            
-            if (missingWebVars.length > 0) {
-                logger.warn(`⚠️ 웹 대시보드 환경 변수가 없습니다: ${missingWebVars.join(', ')}`);
-                logger.info('💡 웹 대시보드를 사용하려면 .env 파일에서 설정하세요.');
-            } else {
-                require('./web/server');
-                logger.success('✅ 웹 대시보드가 시작되었습니다!');
-            }
-        }
+        await client.login(config.discord.token);
         
     } catch (error) {
-        logger.error(`❌ 시작 중 오류 발생: ${error.message}`);
+        logger.error(`봇 시작 실패: ${error.message}`);
+        logger.error(error.stack);
         process.exit(1);
     }
 }
 
-// graceful shutdown 처리
-process.on('SIGINT', async () => {
-    logger.warn('⚠️ 봇 종료 신호를 받았습니다...');
-    
-    try {
-        // 봇 상태를 오프라인으로 설정
-        if (client.user) {
-            await client.destroy();
-            logger.success('✅ Discord 연결이 정상적으로 종료되었습니다.');
-        }
-        
-        // 프로세스 종료
-        process.exit(0);
-    } catch (error) {
-        logger.error(`❌ 종료 중 오류: ${error.message}`);
-        process.exit(1);
-    }
-});
-
 // 시작
 start();
-
-// 모듈 export (웹서버에서 사용)
-module.exports = client;

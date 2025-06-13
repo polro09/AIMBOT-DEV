@@ -1,87 +1,68 @@
+// ========================================
+// modules/example.js
+// ========================================
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const { createEmbed, successEmbed, errorEmbed } = require('../utils/embedBuilder');
 const logger = require('../utils/logger');
 
-// 설정 (상단에서 쉽게 수정 가능)
 const CONFIG = {
-    // 채널 ID
     CHANNEL_IDS: {
         welcome: '1234567890',
         logs: '0987654321',
         announcements: '1122334455'
     },
-    
-    // 카테고리 ID
     CATEGORY_IDS: {
         general: '5544332211',
         admin: '6677889900'
     },
-    
-    // 역할 ID
     ROLE_IDS: {
         member: '1357924680',
         moderator: '2468013579',
         admin: '9876543210'
     },
-    
-    // 기타 설정
     PREFIX: '!',
-    COOLDOWN: 5000, // 5초
+    COOLDOWN: 5000,
     MAX_WARNINGS: 3
 };
 
-// 모듈 정보
 module.exports = {
     name: 'example',
     description: '예제 모듈입니다.',
     version: '1.0.0',
     author: 'aimdot.dev',
     
-    // 모듈 초기화
     async init(client) {
         logger.module(`${this.name} 모듈이 초기화되었습니다.`);
         
-        // 메시지 이벤트 리스너 등록
         client.on('messageCreate', (message) => this.handleMessage(message, client));
-        
-        // 인터랙션 이벤트 리스너 등록
         client.on('interactionCreate', (interaction) => this.handleInteraction(interaction, client));
     },
     
-    // 메시지 처리
     async handleMessage(message, client) {
-        // 봇 메시지 무시
         if (message.author.bot) return;
         
-        // 명령어 처리
         if (message.content.startsWith(CONFIG.PREFIX)) {
             const args = message.content.slice(CONFIG.PREFIX.length).trim().split(/ +/);
             const command = args.shift().toLowerCase();
             
-            // 예제 명령어
             if (command === 'test') {
                 await this.testCommand(message, args, client);
             }
         }
     },
     
-    // 인터랙션 처리
     async handleInteraction(interaction, client) {
-        // 버튼 인터랙션
         if (interaction.isButton()) {
             await this.handleButtonInteraction(interaction, client);
         }
         
-        // 셀렉트 메뉴 인터랙션
         if (interaction.isStringSelectMenu()) {
             await this.handleSelectMenuInteraction(interaction, client);
         }
     },
     
-    // 테스트 명령어
     async testCommand(message, args, client) {
         try {
-            // 임베드 생성
             const embed = createEmbed({
                 title: '🧪 테스트 메뉴',
                 description: '아래 버튼이나 드롭다운을 선택해주세요.',
@@ -101,7 +82,6 @@ module.exports = {
                 ]
             });
             
-            // 버튼 생성
             const row1 = new ActionRowBuilder()
                 .addComponents(
                     new ButtonBuilder()
@@ -121,7 +101,6 @@ module.exports = {
                         .setEmoji('ℹ️')
                 );
             
-            // 셀렉트 메뉴 생성
             const row2 = new ActionRowBuilder()
                 .addComponents(
                     new StringSelectMenuBuilder()
@@ -149,7 +128,6 @@ module.exports = {
                         ])
                 );
             
-            // 메시지 전송
             await message.reply({
                 embeds: [embed],
                 components: [row1, row2]
@@ -169,9 +147,7 @@ module.exports = {
         }
     },
     
-    // 버튼 인터랙션 처리
     async handleButtonInteraction(interaction, client) {
-        // 이 모듈의 버튼인지 확인
         if (!interaction.customId.startsWith('example_button_')) return;
         
         await interaction.deferUpdate();
@@ -221,9 +197,7 @@ module.exports = {
         logger.info(`버튼 클릭: ${interaction.customId} by ${interaction.user.tag}`);
     },
     
-    // 셀렉트 메뉴 인터랙션 처리
     async handleSelectMenuInteraction(interaction, client) {
-        // 이 모듈의 셀렉트 메뉴인지 확인
         if (interaction.customId !== 'example_select') return;
         
         await interaction.deferUpdate();
@@ -259,7 +233,6 @@ module.exports = {
         logger.info(`셀렉트 메뉴 선택: ${selected} by ${interaction.user.tag}`);
     },
     
-    // 모듈 실행 (필수)
     async execute(client) {
         // 이 메서드는 필수이지만, init에서 이벤트를 등록했으므로 비워둡니다.
     }
